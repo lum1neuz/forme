@@ -128,7 +128,8 @@ const api = {
 
   dialog: {
     confirmDiscard: (name) => ipcRenderer.invoke('dialog:confirmDiscard', name),
-    error: (title, message) => ipcRenderer.invoke('dialog:error', title, message)
+    error: (title, message) => ipcRenderer.invoke('dialog:error', title, message),
+    about: () => ipcRenderer.invoke('dialog:about')
   },
 
   shell: {
