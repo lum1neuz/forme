@@ -1,0 +1,19 @@
+/* ===========================================================================
+   Forme — index.css
+   The single stylesheet entry point. Order matters:
+
+     1. theme.css     design tokens (both themes) — must come first
+     2. app.css       reset + shell layout + chrome
+     3. markdown.css  the rendered-markdown surface
+     4. editor.css    CodeMirror / ProseMirror overrides
+     5. prefs.css     the preferences modal — a self-contained overlay, last so
+                      nothing in the shell can out-specify it
+
+   Nothing else belongs in this file.
+   =========================================================================== */
+
+@import './theme.css';
+@import './app.css';
+@import './markdown.css';
+@import './editor.css';
+@import './prefs.css';

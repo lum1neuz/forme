@@ -1,0 +1,735 @@
+/* ===========================================================================
+   Forme — prefs.css
+   The preferences modal (Addendum D). Loaded last so nothing in the shell can
+   out-specify it; it owns #prefs-overlay and nothing else.
+
+   Structure:
+     #prefs-overlay   the scrim — full-viewport, dims + blurs the app. It IS
+                      the click-to-close target, so the dialog is a child and
+                      the controller tells the two apart with
+                      `event.target === overlay`.
+     #prefs-dialog    header across the top, #prefs-nav rail on the left,
+                      #prefs-body on the right. Only #prefs-body scrolls.
+
+   Pane visibility is driven by body[data-prefs-pane], never by a class on the
+   panes themselves.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Overlay / scrim
+   --------------------------------------------------------------------------- */
+#prefs-overlay {
+  position: fixed;
+  inset: 0;
+  /* above #app-menu (400) and anything a mode floats over the workspace */
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  /* One translucent black for both themes: dark enough to separate the dialog
+     from a light page, soft enough not to black out a dark one. */
+  background: rgba(6, 7, 11, 0.5);
+  -webkit-backdrop-filter: blur(3px) saturate(0.85);
+  backdrop-filter: blur(3px) saturate(0.85);
+  animation: prefs-scrim-in var(--transition) both;
+
+  /* The knob colour is deliberately NOT a theme token — it has to stay legible
+     on both the --accent and the --border-strong track of any loaded theme. */
+  --prefs-knob: #f3f4f7;
+}
+
+/* the `hidden` attribute must win — the overlay sets `display` itself */
+#prefs-overlay[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   2. Dialog shell
+   --------------------------------------------------------------------------- */
+#prefs-dialog {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'header header'
+    'nav    body';
+  width: min(720px, calc(100vw - 80px));
+  max-height: min(560px, calc(100vh - 80px));
+  min-height: 0;
+  overflow: hidden; /* clip children to the rounded corners */
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.22),
+    0 24px 64px -12px rgba(0, 0, 0, 0.5);
+  color: var(--fg);
+  font-size: 13px;
+  animation: prefs-dialog-in var(--transition) cubic-bezier(0.32, 0.72, 0.35, 1) both;
+}
+
+/* --- header --------------------------------------------------------------- */
+#prefs-header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: 46px;
+  padding: 0 var(--space-3) 0 var(--space-5);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+#prefs-title {
+  margin: 0;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+#prefs-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+#prefs-close:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+#prefs-close:active {
+  background: var(--bg-inset);
+}
+
+#prefs-close svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* --- nav rail ------------------------------------------------------------- */
+#prefs-nav {
+  grid-area: nav;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-2);
+  overflow-y: auto;
+  background: var(--bg-inset);
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+
+.prefs-tab {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.prefs-tab:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* Active tab. body[data-prefs-pane] is the ONLY source of truth — matching the
+   panes below — so a stale aria-selected can never light a second tab. */
+body[data-prefs-pane='appearance'] .prefs-tab[data-pane='appearance'],
+body[data-prefs-pane='editor'] .prefs-tab[data-pane='editor'],
+body[data-prefs-pane='general'] .prefs-tab[data-pane='general'],
+/* ...until the controller has written it, when the markup's own
+   aria-selected stands in, and matches the fallback pane rule below */
+body:not([data-prefs-pane]) .prefs-tab[aria-selected='true'] {
+  background: var(--accent-muted);
+  color: var(--fg);
+}
+
+/* --- body ----------------------------------------------------------------- */
+#prefs-body {
+  grid-area: body;
+  min-height: 0;
+  /* the body is the ONLY scroller — header and nav stay put */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2) var(--space-5) var(--space-5);
+}
+
+/* ---------------------------------------------------------------------------
+   3. Panes — visibility from body[data-prefs-pane], never a class
+   --------------------------------------------------------------------------- */
+.prefs-pane {
+  display: none;
+}
+
+body[data-prefs-pane='appearance'] .prefs-pane[data-pane='appearance'],
+body[data-prefs-pane='editor'] .prefs-pane[data-pane='editor'],
+body[data-prefs-pane='general'] .prefs-pane[data-pane='general'] {
+  display: block;
+}
+
+/* before the controller has written the attribute, show the first pane rather
+   than an empty dialog */
+body:not([data-prefs-pane]) .prefs-pane[data-pane='appearance'] {
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   4. Rows
+   .prefs-row > .prefs-label (+ optional .prefs-hint) + .prefs-control
+   Label column on the left, control hard right. `.is-stacked` drops the
+   control onto its own full-width line (the theme grid uses it).
+   --------------------------------------------------------------------------- */
+.prefs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label control'
+    'hint  control';
+  column-gap: var(--space-5);
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.prefs-row:last-child {
+  border-bottom: 0;
+}
+
+.prefs-label {
+  grid-area: label;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.prefs-hint {
+  grid-area: hint;
+  margin-top: 3px;
+  color: var(--fg-subtle);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.prefs-control {
+  grid-area: control;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.prefs-row.is-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'label'
+    'hint'
+    'control';
+}
+
+.prefs-row.is-stacked .prefs-control {
+  display: block;
+  justify-self: stretch;
+  margin-top: var(--space-3);
+}
+
+/* ---------------------------------------------------------------------------
+   5. Plain buttons, and the quiet destructive one
+   --------------------------------------------------------------------------- */
+.prefs-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.prefs-button:hover {
+  background: var(--bg-hover);
+}
+
+.prefs-button:active {
+  background: var(--bg-inset);
+}
+
+.prefs-button svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* Destructive, but quiet: danger-coloured text on a hairline, not a red slab.
+   It only picks up a danger-tinted surface on hover. */
+.prefs-button.is-danger {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--danger);
+}
+
+.prefs-button.is-danger:hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   6. Toggle switch — button.prefs-toggle[role="switch"]
+   The button IS the track; ::after is the knob. The state is carried by the
+   knob POSITION as well as the track colour, so it survives a monochrome view.
+   --------------------------------------------------------------------------- */
+.prefs-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  cursor: default;
+  transition: background-color 140ms cubic-bezier(0.32, 0.72, 0.35, 1);
+}
+
+.prefs-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--prefs-knob, #f3f4f7);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 140ms cubic-bezier(0.32, 0.72, 0.35, 1);
+}
+
+.prefs-toggle[aria-checked='true'] {
+  background: var(--accent);
+}
+
+.prefs-toggle[aria-checked='true']::after {
+  transform: translateX(16px);
+}
+
+.prefs-toggle:hover {
+  filter: brightness(1.08);
+}
+
+.prefs-toggle[disabled],
+.prefs-toggle[aria-disabled='true'] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   7. Segmented control — .prefs-segmented > button[data-value][aria-pressed]
+   --------------------------------------------------------------------------- */
+.prefs-segmented {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.prefs-segmented > button {
+  min-width: 56px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--border-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.prefs-segmented > button:first-child {
+  border-left: 0;
+}
+
+.prefs-segmented > button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.prefs-segmented > button[aria-pressed='true'] {
+  background: var(--accent-muted);
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   8. Select
+   --------------------------------------------------------------------------- */
+.prefs-select {
+  height: 26px;
+  min-width: 132px;
+  padding: 0 26px 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  /* chevron inlined as a data: URI — img-src already allows data: */
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23888f9c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.75L6 7.75l3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 12px 12px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: default;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.prefs-select:hover {
+  background-color: var(--bg-hover);
+}
+
+.prefs-select option {
+  background: var(--bg-elevated);
+  color: var(--fg);
+}
+
+/* ---------------------------------------------------------------------------
+   9. Range + its live readout
+   --------------------------------------------------------------------------- */
+.prefs-range {
+  width: 168px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* -- WebKit ---------------------------------------------------------------- */
+.prefs-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.prefs-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px; /* (4px track - 14px thumb) / 2 */
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--bg-elevated);
+  transition: box-shadow var(--transition-fast);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.prefs-range:hover::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 1px var(--bg-elevated),
+    0 0 0 5px var(--accent-muted);
+}
+
+/* -- Firefox --------------------------------------------------------------- */
+.prefs-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.prefs-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.prefs-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--bg-elevated);
+}
+
+.prefs-value {
+  min-width: 42px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------------------
+   10. Theme swatches — the controller fills #prefs-theme-grid
+   --------------------------------------------------------------------------- */
+#prefs-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+
+#prefs-theme-grid:empty::after {
+  content: 'Loading themes…';
+  color: var(--fg-subtle);
+  font-size: 12px;
+}
+
+.theme-swatch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'chips chips'
+    'name  badge';
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  color: var(--fg);
+  font-family: inherit;
+  text-align: left;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.theme-swatch:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.theme-swatch[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.swatch-chips {
+  grid-area: chips;
+  display: flex;
+  gap: 3px;
+  width: 100%;
+}
+
+/* Hairline on every chip: a chip whose colour equals the card background would
+   otherwise be invisible. Inset, so it costs no layout. */
+.chip {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.38);
+}
+
+.swatch-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.swatch-badge {
+  grid-area: badge;
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--fg-subtle);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* no badge text -> no pill */
+.swatch-badge:empty {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   11. Focus — the controller traps focus; this makes it visible.
+   The global ring (app.css) uses outline-offset: 2px, which collides with the
+   dense rows here, so everything inside the dialog draws its ring tight.
+   --------------------------------------------------------------------------- */
+#prefs-dialog :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.prefs-tab:focus-visible,
+.prefs-segmented > button:focus-visible {
+  outline-offset: -2px;
+}
+
+.prefs-toggle:focus-visible,
+.theme-swatch:focus-visible {
+  outline-offset: 2px;
+}
+
+/* the range draws its own ring on the thumb, where the value actually is */
+.prefs-range:focus-visible {
+  outline: none;
+}
+
+.prefs-range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 1px var(--bg-elevated),
+    0 0 0 3px var(--accent);
+}
+
+.prefs-range:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 1px var(--bg-elevated),
+    0 0 0 3px var(--accent);
+}
+
+/* ---------------------------------------------------------------------------
+   12. Narrow window — the rail becomes a row above the body.
+   A 700px viewport is where the dialog itself falls under ~620px, since it is
+   min(720px, 100vw - 80px).
+   --------------------------------------------------------------------------- */
+@media (max-width: 700px) {
+  #prefs-dialog {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'header'
+      'nav'
+      'body';
+  }
+
+  #prefs-nav {
+    flex-direction: row;
+    gap: 4px;
+    padding: var(--space-2) var(--space-3);
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .prefs-tab {
+    flex: 0 0 auto;
+  }
+
+  #prefs-body {
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+
+  /* stack label over control once the row runs out of width */
+  .prefs-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'label'
+      'hint'
+      'control';
+  }
+
+  .prefs-control {
+    justify-self: start;
+    margin-top: var(--space-2);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   13. Motion
+   --------------------------------------------------------------------------- */
+@keyframes prefs-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes prefs-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #prefs-overlay,
+  #prefs-dialog {
+    animation: none;
+  }
+
+  .prefs-toggle,
+  .prefs-toggle::after {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   14. Discard-drafts confirm state
+   The button arms itself on first click and reverts after 4s, so deleting
+   unsaved work always takes two deliberate presses.
+   --------------------------------------------------------------------------- */
+
+#btn-discard-drafts[data-confirm='true'] {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+#btn-discard-drafts:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}

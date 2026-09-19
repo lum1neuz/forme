@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Content Security Policy. script-src carries the sha256 of the inline
+         pre-paint theme script below; regenerate it with: npm run csp-hash -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-xoYicif1M27ZkDkJShou0sW2tpgoGfM0bPjAYAkLczw='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forme</title>
+
+    <!--
+      Pre-paint theme resolution. The controller in src/main.js is the real owner of theme
+      state and also writes localStorage['forme:theme']; this only mirrors it early so the
+      first paint is not the wrong colour. prefers-color-scheme is consulted ONLY as the
+      fallback for when nothing has been stored yet.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('forme:theme')
+          var resolved =
+            stored === 'dark' || stored === 'light'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          document.documentElement.setAttribute('data-theme', resolved)
+        } catch (e) {
+          /* storage unavailable - keep the markup default */
+        }
+      })()
+    </script>
+
+    <link rel="stylesheet" href="./src/styles/index.css" />
+  </head>
+
+  <body
+    data-mode="source"
+    data-font="sans"
+    data-width="normal"
+    data-sidebar="visible"
+    data-sidebar-view="files"
+    data-wrap="on"
+  >
+    <div id="app">
+      <!-- ====================== title bar / tab strip ======================
+           The window is frameless: this strip IS the title bar. Everything in
+           it that can be clicked carries -webkit-app-region: no-drag (app.css
+           section 3b); #tabbar itself and #titlebar-spacer are the drag region.
+           ================================================================== -->
+      <div id="tabbar">
+        <button id="btn-app-menu" type="button" title="Menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3.75 7h16.5" /><path d="M3.75 12h16.5" /><path d="M3.75 17h16.5" /></svg>
+        </button>
+
+        <div id="tabs" role="tablist" aria-label="Open documents"></div>
+
+        <button id="btn-new-tab" type="button" title="New tab (Ctrl+T)" aria-label="New tab">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5.5v13" /><path d="M5.5 12h13" /></svg>
+        </button>
+
+        <!-- flexible drag handle: all the empty space between the tabs and the
+             caption buttons is what the user grabs to move the window -->
+        <div id="titlebar-spacer"></div>
+
+        <div id="window-controls">
+          <button id="btn-win-min" type="button" title="Minimise" aria-label="Minimise">
+            <svg class="win-glyph" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false"><path d="M0 5.5h10" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+          </button>
+          <!-- both glyphs live here; CSS shows one or the other based on
+               #btn-win-max[data-maximized="true"] (or body[data-maximized]) -->
+          <button id="btn-win-max" type="button" title="Maximise" aria-label="Maximise">
+            <svg class="win-glyph glyph-maximize" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+            <svg class="win-glyph glyph-restore" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false"><path d="M2.5 2.5v-2h7v7h-2" fill="none" stroke="currentColor" stroke-width="1" /><rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+          </button>
+          <button id="btn-win-close" type="button" title="Close" aria-label="Close">
+            <svg class="win-glyph" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false"><path d="M0.5 0.5l9 9" fill="none" stroke="currentColor" stroke-width="1" /><path d="M9.5 0.5l-9 9" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Application menu popup, anchored under #btn-app-menu. The controller
+           fills it at runtime with .menu-item / .menu-separator /
+           .menu-section-label children; this shell only provides the box. -->
+      <div id="app-menu" role="menu" aria-label="Application menu" hidden></div>
+
+      <!-- ============================ toolbar ============================ -->
+      <header id="toolbar">
+        <div id="toolbar-left">
+          <button id="btn-sidebar" class="tb-btn" type="button" title="Toggle sidebar" aria-label="Toggle sidebar" aria-pressed="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>
+          </button>
+          <span class="tb-sep" aria-hidden="true"></span>
+          <button id="btn-new" class="tb-btn" type="button" title="New file" aria-label="New file">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M12 12v5" /><path d="M9.5 14.5h5" /></svg>
+          </button>
+          <button id="btn-open" class="tb-btn" type="button" title="Open file" aria-label="Open file">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2V10" /><path d="M3 9.5h17.2a1 1 0 0 1 .97 1.24l-1.75 7A1 1 0 0 1 18.45 19H5a2 2 0 0 1-2-2z" /></svg>
+          </button>
+          <button id="btn-save" class="tb-btn" type="button" title="Save" aria-label="Save file">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h7" /></svg>
+          </button>
+        </div>
+
+        <!-- format bar: hidden when body[data-mode="reading"] -->
+        <div id="format-bar" role="toolbar" aria-label="Formatting">
+          <button class="fmt-btn" type="button" data-cmd="bold" title="Bold" aria-label="Bold">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 5h6.5a3.5 3.5 0 0 1 0 7H7z" /><path d="M7 12h7.5a3.5 3.5 0 0 1 0 7H7z" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="italic" title="Italic" aria-label="Italic">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 5h-7" /><path d="M12 19H5" /><path d="M15 5l-6 14" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="strike" title="Strikethrough" aria-label="Strikethrough">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12h16" /><path d="M17 8a3.5 3.5 0 0 0-3.4-2.6h-2A3.2 3.2 0 0 0 9.4 11" /><path d="M7 16a3.5 3.5 0 0 0 3.4 2.6h2A3.2 3.2 0 0 0 15 16" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="code" title="Inline code" aria-label="Inline code">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 17l5-5-5-5" /><path d="M9 7l-5 5 5 5" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="link" title="Insert link" aria-label="Insert link">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 13a4.5 4.5 0 0 0 6.6.6l2.4-2.4a4.5 4.5 0 0 0-6.4-6.4L11.4 6" /><path d="M14 11a4.5 4.5 0 0 0-6.6-.6L5 12.8a4.5 4.5 0 0 0 6.4 6.4L12.6 18" /></svg>
+          </button>
+
+          <span class="fmt-sep" aria-hidden="true"></span>
+
+          <button class="fmt-btn" type="button" data-cmd="h1" title="Heading 1" aria-label="Heading 1">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6v12" /><path d="M12 6v12" /><path d="M4 12h8" /><text x="15.4" y="18.4" font-size="9.5" font-weight="600" fill="currentColor" stroke="none">1</text></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="h2" title="Heading 2" aria-label="Heading 2">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6v12" /><path d="M12 6v12" /><path d="M4 12h8" /><text x="14.8" y="18.4" font-size="9.5" font-weight="600" fill="currentColor" stroke="none">2</text></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="h3" title="Heading 3" aria-label="Heading 3">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6v12" /><path d="M12 6v12" /><path d="M4 12h8" /><text x="14.8" y="18.4" font-size="9.5" font-weight="600" fill="currentColor" stroke="none">3</text></svg>
+          </button>
+
+          <span class="fmt-sep" aria-hidden="true"></span>
+
+          <button class="fmt-btn" type="button" data-cmd="bulletList" title="Bullet list" aria-label="Bullet list">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /><circle cx="4.5" cy="6" r="1.15" fill="currentColor" stroke="none" /><circle cx="4.5" cy="12" r="1.15" fill="currentColor" stroke="none" /><circle cx="4.5" cy="18" r="1.15" fill="currentColor" stroke="none" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="orderedList" title="Numbered list" aria-label="Numbered list">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 6h10" /><path d="M10 12h10" /><path d="M10 18h10" /><path d="M3.6 4.6h1.2V9" /><path d="M3.3 9h2.4" /><path d="M3.3 14.2a1.25 1.25 0 1 1 2.2.9L3.3 18h2.6" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="taskList" title="Task list" aria-label="Task list">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="7" height="7" rx="1.6" /><path d="M4.8 7.5l1.5 1.5 2.4-2.8" /><rect x="3" y="14" width="7" height="7" rx="1.6" /><path d="M13 7.5h8" /><path d="M13 17.5h8" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="blockquote" title="Blockquote" aria-label="Blockquote">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5v14" /><path d="M9 9h11" /><path d="M9 15h7" /></svg>
+          </button>
+
+          <span class="fmt-sep" aria-hidden="true"></span>
+
+          <button class="fmt-btn" type="button" data-cmd="codeBlock" title="Code block" aria-label="Code block">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.2" /><path d="M13.8 9.6l2.4 2.4-2.4 2.4" /><path d="M10.2 9.6L7.8 12l2.4 2.4" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="hr" title="Horizontal rule" aria-label="Horizontal rule">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12h18" /><path d="M5 7h14" opacity=".38" /><path d="M5 17h14" opacity=".38" /></svg>
+          </button>
+          <button class="fmt-btn" type="button" data-cmd="table" title="Insert table" aria-label="Insert table">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.2" /><path d="M3 9.5h18" /><path d="M3 15h18" /><path d="M10.5 9.5V20" /></svg>
+          </button>
+        </div>
+
+        <div id="toolbar-right">
+          <div id="mode-switch" role="group" aria-label="Editor mode">
+            <button class="mode-btn" type="button" data-mode="source" aria-pressed="true" title="Source mode" aria-label="Source mode">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 17l5-5-5-5" /><path d="M9 7l-5 5 5 5" /></svg>
+              <span class="mode-label">Source</span>
+            </button>
+            <button class="mode-btn" type="button" data-mode="rich" aria-pressed="false" title="Rich text mode" aria-label="Rich text mode">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 5.5l4 4" /><path d="M16.2 3.8a2.4 2.4 0 0 1 3.4 3.4L8.4 18.4l-4.4 1.2 1.2-4.4z" /></svg>
+              <span class="mode-label">Rich</span>
+            </button>
+            <button class="mode-btn" type="button" data-mode="split" aria-pressed="false" title="Split view (Ctrl+H)" aria-label="Split view">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.2" /><path d="M12 4v16" /></svg>
+              <span class="mode-label">Split</span>
+            </button>
+            <button class="mode-btn" type="button" data-mode="reading" aria-pressed="false" title="Reading mode" aria-label="Reading mode">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 7.2C10.4 5.9 8.4 5.3 4 5.3V18c4.4 0 6.4.6 8 1.9" /><path d="M12 7.2c1.6-1.3 3.6-1.9 8-1.9V18c-4.4 0-6.4.6-8 1.9z" /><path d="M12 7.2v12.7" /></svg>
+              <span class="mode-label">Read</span>
+            </button>
+          </div>
+          <span class="tb-sep" aria-hidden="true"></span>
+          <button id="btn-theme" class="tb-btn" type="button" title="Toggle theme" aria-label="Toggle colour theme">
+            <svg class="icon-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 13.5A8.2 8.2 0 0 1 10.5 4a8.2 8.2 0 1 0 9.5 9.5z" /></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.6v2.2" /><path d="M12 19.2v2.2" /><path d="M4.4 4.4L6 6" /><path d="M18 18l1.6 1.6" /><path d="M2.6 12h2.2" /><path d="M19.2 12h2.2" /><path d="M4.4 19.6L6 18" /><path d="M18 6l1.6-1.6" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- ============================= body ============================= -->
+      <div id="body">
+        <!-- icon rail: never hidden, the only way to bring the sidebar back -->
+        <nav id="activitybar" role="tablist" aria-label="Sidebar views">
+          <button class="activity-item" type="button" role="tab" data-view="files" aria-selected="true" title="Explorer" aria-label="Explorer">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+          </button>
+          <button class="activity-item" type="button" role="tab" data-view="outline" aria-selected="false" title="Outline" aria-label="Outline">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h10" /><path d="M7 12h10" /><path d="M10 18h10" /></svg>
+          </button>
+          <button class="activity-item" type="button" role="tab" data-view="recent" aria-selected="false" title="Recent" aria-label="Recent">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.3" /><path d="M12 7.4V12l3 1.8" /></svg>
+          </button>
+        </nav>
+
+        <aside id="sidebar" aria-label="Document navigation">
+          <div id="sidebar-header">
+            <span id="sidebar-title">Explorer</span>
+            <div id="sidebar-actions">
+              <button id="btn-choose-folder" class="side-action" type="button" title="Choose folder" aria-label="Choose folder">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="sidebar-panels">
+            <section id="folder-tree" data-view="files" aria-label="Files">
+              <p class="folder-crumb"><span id="folder-name"></span></p>
+              <ul id="folder-tree-list" class="side-list tree-list"></ul>
+              <p class="empty">No folder chosen yet.</p>
+            </section>
+
+            <section id="outline" data-view="outline" aria-label="Outline">
+              <ul id="outline-list" class="side-list"></ul>
+              <p class="empty">No headings yet.</p>
+            </section>
+
+            <section id="recent-files" data-view="recent" aria-label="Recent files">
+              <ul id="recent-list" class="side-list"></ul>
+              <p class="empty">No recent files.</p>
+            </section>
+          </div>
+        </aside>
+
+        <div id="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize sidebar"></div>
+
+        <main id="workspace">
+          <div id="mode-host"></div>
+        </main>
+      </div>
+
+      <!-- =========================== status bar ========================== -->
+      <footer id="statusbar">
+        <span id="status-file" class="status-item" title="Current file">Untitled</span>
+        <span id="status-dirty" class="status-item" aria-live="polite"></span>
+        <span class="status-spacer" aria-hidden="true"></span>
+        <button id="btn-wrap" class="status-btn" type="button" title="Toggle soft wrap in code blocks" aria-label="Toggle soft wrap in code blocks" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16" /><path d="M4 12h12.5a3.5 3.5 0 0 1 0 7H13" /><path d="M15 16.6L12.6 19 15 21.4" /><path d="M4 18h4" /></svg>
+          <span>Wrap</span>
+        </button>
+        <span id="status-mode" class="status-item">Source</span>
+        <span id="status-stats" class="status-item">0 words</span>
+        <button id="btn-prefs" class="status-btn" type="button" title="Preferences (Ctrl+,)" aria-label="Preferences" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7.5h7.5" /><path d="M16.5 7.5H20" /><circle cx="14" cy="7.5" r="2.3" /><path d="M4 16.5h3.5" /><path d="M12.5 16.5H20" /><circle cx="10" cy="16.5" r="2.3" /></svg>
+        </button>
+      </footer>
+
+      <!-- ======================= preferences modal =======================
+           #prefs-overlay is itself the scrim, with the dialog as its child, so
+           the controller can tell a backdrop click from a click inside the
+           dialog by looking at event.target. Start hidden; Ctrl+, / the app
+           menu / #btn-prefs open it.
+
+           The visible pane comes from body[data-prefs-pane="appearance" |
+           "editor" | "general"] — nothing here carries an is-active class.
+           The theme grid is left empty on purpose: the controller fills it
+           with .theme-swatch buttons from window.forme.theme.list().
+           ================================================================== -->
+      <div id="prefs-overlay" hidden>
+        <div id="prefs-dialog" role="dialog" aria-modal="true" aria-labelledby="prefs-title">
+          <header id="prefs-header">
+            <h2 id="prefs-title">Preferences</h2>
+            <button id="prefs-close" type="button" title="Close" aria-label="Close preferences">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6.5 6.5l11 11" /><path d="M17.5 6.5l-11 11" /></svg>
+            </button>
+          </header>
+
+          <nav id="prefs-nav" role="tablist" aria-label="Preference sections" aria-orientation="vertical">
+            <button class="prefs-tab" id="prefs-tab-appearance" type="button" role="tab" data-pane="appearance" aria-selected="true" aria-controls="prefs-pane-appearance">Appearance</button>
+            <button class="prefs-tab" id="prefs-tab-editor" type="button" role="tab" data-pane="editor" aria-selected="false" aria-controls="prefs-pane-editor">Editor</button>
+            <button class="prefs-tab" id="prefs-tab-general" type="button" role="tab" data-pane="general" aria-selected="false" aria-controls="prefs-pane-general">General</button>
+          </nav>
+
+          <div id="prefs-body">
+            <!-- ---------------------------- appearance ------------------- -->
+            <section class="prefs-pane" id="prefs-pane-appearance" data-pane="appearance" role="tabpanel" aria-labelledby="prefs-tab-appearance">
+              <div class="prefs-row is-stacked">
+                <span class="prefs-label" id="prefs-theme-label">Theme</span>
+                <span class="prefs-hint">Custom themes are JSON files in your themes folder — they show up here and reload the moment you save one.</span>
+                <div class="prefs-control">
+                  <div id="prefs-theme-grid" role="group" aria-labelledby="prefs-theme-label"></div>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-follow-system-label">Follow system appearance</span>
+                <span class="prefs-hint">Switch between your light and dark themes with the operating system.</span>
+                <div class="prefs-control">
+                  <button id="pref-follow-system" class="prefs-toggle" type="button" role="switch" aria-checked="false" aria-labelledby="pref-follow-system-label"></button>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label">Themes folder</span>
+                <div class="prefs-control">
+                  <button id="btn-open-themes-folder" class="prefs-button" type="button">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+                    <span>Open folder</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ------------------------------ editor --------------------- -->
+            <section class="prefs-pane" id="prefs-pane-editor" data-pane="editor" role="tabpanel" aria-labelledby="prefs-tab-editor">
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-font-family-label">Font</span>
+                <div class="prefs-control">
+                  <div id="pref-font-family" class="prefs-segmented" role="group" aria-labelledby="pref-font-family-label">
+                    <button type="button" data-value="sans" aria-pressed="true">Sans</button>
+                    <button type="button" data-value="serif" aria-pressed="false">Serif</button>
+                    <button type="button" data-value="mono" aria-pressed="false">Mono</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <label class="prefs-label" for="pref-font-size">Font size</label>
+                <div class="prefs-control">
+                  <input id="pref-font-size" class="prefs-range" type="range" min="10" max="32" step="1" value="16" />
+                  <output id="pref-font-size-value" class="prefs-value" for="pref-font-size">16px</output>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-line-width-label">Line width</span>
+                <span class="prefs-hint">How wide the text column gets before it stops growing.</span>
+                <div class="prefs-control">
+                  <div id="pref-line-width" class="prefs-segmented" role="group" aria-labelledby="pref-line-width-label">
+                    <button type="button" data-value="narrow" aria-pressed="false">Narrow</button>
+                    <button type="button" data-value="normal" aria-pressed="true">Normal</button>
+                    <button type="button" data-value="wide" aria-pressed="false">Wide</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-wrap-label">Soft wrap</span>
+                <span class="prefs-hint">Wrap long lines instead of scrolling sideways.</span>
+                <div class="prefs-control">
+                  <button id="pref-wrap" class="prefs-toggle" type="button" role="switch" aria-checked="true" aria-labelledby="pref-wrap-label"></button>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-line-numbers-label">Line numbers</span>
+                <span class="prefs-hint">Shown in source and split views.</span>
+                <div class="prefs-control">
+                  <button id="pref-line-numbers" class="prefs-toggle" type="button" role="switch" aria-checked="true" aria-labelledby="pref-line-numbers-label"></button>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-spellcheck-label">Spell check</span>
+                <div class="prefs-control">
+                  <button id="pref-spellcheck" class="prefs-toggle" type="button" role="switch" aria-checked="true" aria-labelledby="pref-spellcheck-label"></button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------------------- general --------------------- -->
+            <section class="prefs-pane" id="prefs-pane-general" data-pane="general" role="tabpanel" aria-labelledby="prefs-tab-general">
+              <div class="prefs-row">
+                <label class="prefs-label" for="pref-default-mode">Default view</label>
+                <span class="prefs-hint">Used for new documents.</span>
+                <div class="prefs-control">
+                  <select id="pref-default-mode" class="prefs-select">
+                    <option value="source">Source</option>
+                    <option value="rich">Rich Text</option>
+                    <option value="split">Split</option>
+                    <option value="reading">Reading</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-restore-session-label">Restore session</span>
+                <span class="prefs-hint">Reopen the tabs you had open when you last quit.</span>
+                <div class="prefs-control">
+                  <button id="pref-restore-session" class="prefs-toggle" type="button" role="switch" aria-checked="true" aria-labelledby="pref-restore-session-label"></button>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label" id="pref-keep-drafts-label">Keep unsaved work</span>
+                <span class="prefs-hint">Untitled tabs and unsaved edits are cached on disk, so they come back if the app closes. Turning this off leaves existing drafts on disk but stops using them.</span>
+                <div class="prefs-control">
+                  <button id="pref-keep-drafts" class="prefs-toggle" type="button" role="switch" aria-checked="true" aria-labelledby="pref-keep-drafts-label"></button>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label">Unsaved drafts</span>
+                <span class="prefs-hint" id="drafts-count">No drafts stored.</span>
+                <div class="prefs-control">
+                  <button id="btn-discard-drafts" class="prefs-button is-danger" type="button">Discard drafts</button>
+                </div>
+              </div>
+
+              <div class="prefs-row">
+                <span class="prefs-label">Reset preferences</span>
+                <span class="prefs-hint">Puts every setting back to its default. This cannot be undone.</span>
+                <div class="prefs-control">
+                  <button id="prefs-reset" class="prefs-button is-danger" type="button">Restore defaults</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

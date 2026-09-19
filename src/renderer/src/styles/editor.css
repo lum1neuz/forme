@@ -1,0 +1,484 @@
+/* ===========================================================================
+   Forme — editor.css
+   Overrides for the two editor engines: CodeMirror 6 (source mode) and
+   TipTap / ProseMirror (rich mode). Both fill their host and scroll internally.
+   Typography for rich mode lives in markdown.css — the rich root carries
+   `.markdown-body .ProseMirror`; this file only handles editor chrome.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Shared host behaviour
+   Whatever a mode mounts becomes the single full-height child of #mode-host
+   (or of a .split-pane in split view).
+   --------------------------------------------------------------------------- */
+#mode-host > *,
+.split-pane > * {
+  min-height: 0;
+}
+
+#mode-host > .cm-editor,
+#mode-host > .mode-root,
+.split-pane > .cm-editor,
+.split-pane > .mode-root {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+}
+
+/* a mode wrapper that scrolls its own rendered content */
+.mode-root {
+  min-width: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+/* ===========================================================================
+   2. CodeMirror 6
+   =========================================================================== */
+.cm-editor {
+  height: 100%;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size);
+  line-height: 1.65;
+}
+
+/* we render focus through the caret and active line, not an outline */
+.cm-editor.cm-focused {
+  outline: none !important;
+}
+
+.cm-scroller {
+  font-family: inherit;
+  line-height: inherit;
+  overscroll-behavior: contain;
+}
+
+/* The content column is centred with symmetric padding rather than
+   `max-width + margin:auto`, so the editable area still spans the full pane
+   and clicking beside the text places the caret instead of doing nothing.
+   `--line-width` is in ch, which here resolves against the mono font — i.e.
+   a real column count for source text. */
+.cm-content {
+  max-width: none;
+  padding: var(--space-5) 0 40vh;
+  padding-inline: max(var(--space-4), calc((100% - var(--line-width)) / 2));
+  caret-color: var(--accent);
+}
+
+/* in split view the pane is narrow — use its whole width */
+body[data-mode='split'] .cm-content {
+  padding-inline: var(--space-4);
+}
+
+.cm-line {
+  padding: 0 var(--space-2);
+}
+
+/* caret --------------------------------------------------------------------- */
+.cm-editor .cm-cursor,
+.cm-editor .cm-dropCursor {
+  border-left: 2px solid var(--accent);
+}
+
+.cm-editor .cm-cursor-secondary {
+  border-left-color: var(--fg-subtle);
+}
+
+/* selection ----------------------------------------------------------------- */
+.cm-editor .cm-selectionBackground,
+.cm-editor .cm-content ::selection {
+  background: var(--selection) !important;
+}
+
+.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--selection) !important;
+}
+
+/* active line --------------------------------------------------------------- */
+.cm-editor .cm-activeLine {
+  background: color-mix(in srgb, var(--bg-hover) 55%, transparent);
+}
+
+.cm-editor .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--bg-hover) 55%, transparent);
+  color: var(--fg-muted);
+}
+
+/* gutters ------------------------------------------------------------------- */
+.cm-editor .cm-gutters {
+  border-right: 1px solid transparent;
+  background: transparent;
+  color: var(--fg-subtle);
+  font-size: 0.88em;
+  user-select: none;
+}
+
+.cm-editor .cm-lineNumbers .cm-gutterElement {
+  padding: 0 var(--space-2) 0 var(--space-3);
+  min-width: 2.4em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-editor .cm-foldGutter .cm-gutterElement {
+  color: var(--fg-subtle);
+  padding: 0 2px;
+}
+
+.cm-editor .cm-foldPlaceholder {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+}
+
+/* matching brackets --------------------------------------------------------- */
+.cm-editor .cm-matchingBracket,
+.cm-editor.cm-focused .cm-matchingBracket {
+  background: var(--accent-muted) !important;
+  color: var(--accent) !important;
+  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 2px;
+}
+
+.cm-editor .cm-nonmatchingBracket {
+  background: color-mix(in srgb, var(--danger) 18%, transparent) !important;
+  color: var(--danger) !important;
+  border-radius: 2px;
+}
+
+/* selection / search matches ------------------------------------------------ */
+.cm-editor .cm-selectionMatch {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 2px;
+}
+
+.cm-editor .cm-searchMatch {
+  background: color-mix(in srgb, var(--warning) 26%, transparent);
+  border-radius: 2px;
+  outline: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+}
+
+.cm-editor .cm-searchMatch.cm-searchMatch-selected {
+  background: var(--accent-muted);
+  outline-color: var(--accent);
+}
+
+/* placeholder --------------------------------------------------------------- */
+.cm-editor .cm-placeholder {
+  color: var(--fg-subtle);
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------
+   2b. CodeMirror search panel — restyled to look like part of the app.
+   --------------------------------------------------------------------------- */
+.cm-editor .cm-panels {
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 0;
+  z-index: 3;
+}
+
+.cm-editor .cm-panels.cm-panels-top {
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.cm-editor .cm-panels.cm-panels-bottom {
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.cm-editor .cm-panel.cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}
+
+.cm-editor .cm-panel.cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.cm-editor .cm-panel.cm-search input[type='checkbox'] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.cm-editor .cm-textfield,
+.cm-editor .cm-panel.cm-search input[type='text'] {
+  height: 26px;
+  min-width: 170px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.cm-editor .cm-textfield::placeholder {
+  color: var(--fg-subtle);
+}
+
+.cm-editor .cm-textfield:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.cm-editor .cm-button,
+.cm-editor .cm-panel.cm-search button[name] {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  background-image: none;
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.cm-editor .cm-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.cm-editor .cm-button:active {
+  background: var(--bg-inset);
+  background-image: none;
+}
+
+/* the panel's close [x] */
+.cm-editor .cm-panel.cm-search button[name='close'] {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-subtle);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.cm-editor .cm-panel.cm-search button[name='close']:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* tooltips / autocomplete --------------------------------------------------- */
+.cm-editor .cm-tooltip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+}
+
+.cm-editor .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+/* ===========================================================================
+   3. TipTap / ProseMirror
+   =========================================================================== */
+.ProseMirror {
+  min-height: 100%;
+  outline: none !important;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  caret-color: var(--accent);
+  -moz-tab-size: 2;
+  tab-size: 2;
+}
+
+.ProseMirror:focus,
+.ProseMirror-focused {
+  outline: none !important;
+}
+
+/* When the editable IS the direct child of the host it has to be the scroller.
+   Like .cm-content it is centred with padding rather than `max-width +
+   margin:auto`, so the editable area spans the whole pane and clicking beside
+   the text still places the caret. (Overrides markdown.css, imported later.) */
+#mode-host > .ProseMirror,
+.split-pane > .ProseMirror,
+#mode-host > .mode-root > .ProseMirror,
+.split-pane > .mode-root > .ProseMirror {
+  max-width: none;
+  margin: 0;
+  padding-inline: max(var(--space-5), calc((100% - var(--line-width)) / 2));
+}
+
+#mode-host > .ProseMirror,
+.split-pane > .ProseMirror {
+  height: 100%;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+body[data-mode='split'] .ProseMirror {
+  padding-inline: var(--space-5);
+}
+
+.ProseMirror ::selection {
+  background: var(--selection);
+}
+
+/* placeholder (TipTap Placeholder extension) -------------------------------- */
+.ProseMirror p.is-editor-empty:first-child::before,
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--fg-subtle);
+  font-style: italic;
+}
+
+/* node selection ------------------------------------------------------------ */
+.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.ProseMirror li.ProseMirror-selectednode {
+  outline: none;
+}
+
+.ProseMirror li.ProseMirror-selectednode::after {
+  content: '';
+  position: absolute;
+  inset: -2px -2px -2px -32px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+.ProseMirror hr.ProseMirror-selectednode {
+  outline: none;
+  background: var(--accent);
+}
+
+/* gap cursor ---------------------------------------------------------------- */
+.ProseMirror-gapcursor {
+  display: none;
+  position: relative;
+  pointer-events: none;
+}
+
+.ProseMirror-gapcursor::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 22px;
+  border-top: 2px solid var(--accent);
+  animation: forme-gapcursor-blink 1.1s steps(2, start) infinite;
+}
+
+.ProseMirror-gapcursor:focus,
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
+@keyframes forme-gapcursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ProseMirror-gapcursor::after {
+    animation: none;
+  }
+}
+
+/* tables -------------------------------------------------------------------- */
+.ProseMirror table {
+  position: relative;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  position: relative;
+  min-width: 5em;
+}
+
+/* cell selection highlight */
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-muted);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* column resize handle */
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  z-index: 20;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  margin: 1.4em 0;
+}
+
+/* ProseMirror's own hidden-content helpers ---------------------------------- */
+.ProseMirror-hideselection *::selection {
+  background: transparent;
+}
+.ProseMirror-hideselection *::-moz-selection {
+  background: transparent;
+}
+.ProseMirror-hideselection {
+  caret-color: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   4. Reading mode host
+   Reading mode is not editable — hide the caret and let it scroll as a page.
+   --------------------------------------------------------------------------- */
+body[data-mode='reading'] #mode-host .markdown-body {
+  caret-color: transparent;
+}
