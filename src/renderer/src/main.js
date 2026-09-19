@@ -197,8 +197,22 @@ systemDark.addEventListener('change', () => {
 
 const persistSettings = debounce((patch) => { api.settings.set(patch) }, 250)
 
+/**
+ * While the preferences dialog is open, edits preview live but are NOT written
+ * to disk — they accumulate here until Apply. Cancel puts the snapshot back.
+ */
+let prefsStaging = null
+
 function updateSettings (patch, { immediate = false } = {}) {
   Object.assign(state.settings, patch)
+  if (prefsStaging) {
+    for (const key of Object.keys(patch)) {
+      if (!(key in prefsStaging.snapshot)) prefsStaging.snapshot[key] = prefsStaging.original[key]
+    }
+    Object.assign(prefsStaging.patch, patch)
+    paintPrefsFooter()
+    return
+  }
   if (immediate) api.settings.set(patch)
   else persistSettings(patch)
 }
@@ -1295,6 +1309,36 @@ async function discardDrafts () {
   refreshDraftCount()
 }
 
+function paintPrefsFooter () {
+  if (!el.prefsApply) return
+  const dirty = prefsStaging ? Object.keys(prefsStaging.patch).length > 0 : false
+  el.prefsApply.disabled = !dirty
+}
+
+/** Write the staged changes to disk and close. */
+function applyPrefs () {
+  if (prefsStaging && Object.keys(prefsStaging.patch).length) {
+    api.settings.set({ ...prefsStaging.patch })
+  }
+  prefsStaging = null
+  closePrefs()
+}
+
+/** Put back everything the dialog changed, then close without writing. */
+async function cancelPrefs () {
+  if (!prefsStaging) { closePrefs(); return }
+  const { snapshot, patch } = prefsStaging
+  const themeTouched = ['theme', 'themeDark', 'themeLight'].some((k) => k in patch)
+  for (const key of Object.keys(patch)) state.settings[key] = snapshot[key]
+  prefsStaging = null
+
+  applyBodySettings()
+  if (themeTouched) await applyTheme()
+  paintPrefs()
+  paintToolbar()
+  closePrefs()
+}
+
 function setPrefsPane (pane) {
   if (!PREFS_PANES.includes(pane)) return
   document.body.dataset.prefsPane = pane
@@ -1307,11 +1351,14 @@ function setPrefsPane (pane) {
 
 function openPrefs () {
   if (!el.prefsOverlay) return
+  // Snapshot before anything can change, so Cancel has something to restore.
+  prefsStaging = { patch: {}, snapshot: {}, original: { ...state.settings } }
   prefsReturnFocus = document.activeElement
   closeAppMenu()
   loadThemeList().then(paintThemeGrid)
   paintPrefs()
   if (!document.body.dataset.prefsPane) setPrefsPane('appearance')
+  paintPrefsFooter()
   el.prefsOverlay.removeAttribute('hidden')
   el.prefsDialog?.querySelector('.prefs-tab')?.focus()
 }
@@ -1337,6 +1384,7 @@ async function resetPrefs () {
   // confirmDiscard is phrased for documents; treat anything but an explicit
   // 'discard' as a decline so a stray Enter cannot wipe settings.
   if (choice !== 'discard') return
+  // Staged like any other edit: nothing is written until Apply.
   prefsApplyLive({
     keepDrafts: true,
     theme: 'system',
@@ -1369,6 +1417,8 @@ function wirePrefs () {
   el.prefSpellcheck = $('#pref-spellcheck')
   el.prefDefaultMode = $('#pref-default-mode')
   el.prefRestoreSession = $('#pref-restore-session')
+  el.prefsApply = $('#prefs-apply')
+  el.prefsCancel = $('#prefs-cancel')
   el.prefKeepDrafts = $('#pref-keep-drafts')
   el.btnDiscardDrafts = $('#btn-discard-drafts')
   el.draftsCount = $('#drafts-count')
@@ -1376,10 +1426,14 @@ function wirePrefs () {
   if (!el.prefsOverlay) return
 
   // Scrim click closes; clicks inside the dialog must not.
+  // Dismissing without Apply discards, which is what Cancel/Esc/✕ should mean
+  // once the dialog has an explicit Apply button.
   el.prefsOverlay.addEventListener('pointerdown', (e) => {
-    if (e.target === el.prefsOverlay) closePrefs()
+    if (e.target === el.prefsOverlay) cancelPrefs()
   })
-  $('#prefs-close')?.addEventListener('click', () => closePrefs())
+  $('#prefs-close')?.addEventListener('click', () => cancelPrefs())
+  el.prefsCancel?.addEventListener('click', () => cancelPrefs())
+  el.prefsApply?.addEventListener('click', () => applyPrefs())
 
   $('#prefs-nav')?.addEventListener('click', (e) => {
     const tab = e.target.closest('.prefs-tab')
@@ -1441,7 +1495,7 @@ function wirePrefs () {
 
   // Escape closes; Tab is trapped inside the dialog while it is open.
   el.prefsOverlay.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); closePrefs(); return }
+    if (e.key === 'Escape') { e.preventDefault(); cancelPrefs(); return }
     if (e.key !== 'Tab') return
     const focusable = [...el.prefsDialog.querySelectorAll(
       'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
