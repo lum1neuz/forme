@@ -1822,6 +1822,35 @@ function registerIpc() {
     }
   })
 
+  // About is emphatically NOT an error: showErrorBox gives it a red icon and
+  // an "Error" title bar, which is what this used to look like.
+  ipcMain.handle('dialog:about', async (event) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const options = {
+        type: 'info',
+        title: 'About Forme',
+        message: `Forme ${app.getVersion()}`,
+        detail: [
+          'A markdown editor with source, rich text, split and reading views.',
+          '',
+          `Electron ${process.versions.electron}  ·  Chromium ${process.versions.chrome}`,
+          `Node ${process.versions.node}`,
+          '',
+          'CodeMirror 6 · TipTap · markdown-it'
+        ].join('\n'),
+        buttons: ['OK'],
+        defaultId: 0,
+        noLink: true
+      }
+      if (win) await dialog.showMessageBox(win, options)
+      else await dialog.showMessageBox(options)
+      return { ok: true }
+    } catch (err) {
+      return { error: errorMessage(err) }
+    }
+  })
+
   ipcMain.handle('shell:openExternal', async (_event, url) => {
     try {
       if (typeof url !== 'string' || !isWebUrl(url)) {

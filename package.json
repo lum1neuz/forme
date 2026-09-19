@@ -1,6 +1,6 @@
 {
   "name": "forme",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A markdown editor with source, rich text, split and reading views",
   "main": "./out/main/index.js",
   "license": "MIT",

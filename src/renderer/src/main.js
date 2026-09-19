@@ -1012,10 +1012,7 @@ const commands = {
   'view:zoom-out': () => zoom(-1),
   'view:zoom-reset': () => { updateSettings({ fontSize: 15 }, { immediate: true }); applyBodySettings() },
   'edit:find': () => state.primary?.find?.(),
-  'help:about': () => api.dialog.error(
-    'Forme',
-    'Forme — a markdown editor with source, rich text, split and reading views.\n\nElectron · CodeMirror 6 · TipTap · markdown-it'
-  ),
+  'help:about': () => api.dialog.about(),
   'settings:changed': (payload) => {
     if (!payload) return
     Object.assign(state.settings, payload)
@@ -1380,6 +1377,9 @@ function prefsApplyLive (patch) {
 }
 
 async function resetPrefs () {
+  // confirmDiscard is worded for documents ("save the changes you made to X").
+  // It reads oddly here, but it is the only confirm available and the staged
+  // model means Restore defaults is undoable with Cancel anyway.
   const choice = await api.dialog.confirmDiscard?.('all preferences')
   // confirmDiscard is phrased for documents; treat anything but an explicit
   // 'discard' as a decline so a stray Enter cannot wipe settings.
