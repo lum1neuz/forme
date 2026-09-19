@@ -1,0 +1,98 @@
+{
+  "name": "forme",
+  "version": "0.1.0",
+  "description": "A markdown editor with source, rich text, split and reading views",
+  "main": "./out/main/index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder",
+    "csp-hash": "node scripts/csp-hash.mjs",
+    "themes:sync": "node scripts/themes-sync.mjs",
+    "icon": "node scripts/make-icon.mjs"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/language-data": "^6.5.1",
+    "@codemirror/search": "^6.5.11",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.6",
+    "@lezer/highlight": "^1.2.1",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-list": "3.31.3",
+    "@tiptap/extension-table": "^3.31.3",
+    "@tiptap/extension-typography": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "codemirror": "^6.0.2",
+    "dompurify": "^3.4.15",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "highlight.js": "^11.12.0",
+    "markdown-it": "^15.0.2",
+    "markdown-it-anchor": "^10.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2",
+    "vite": "^7.0.0"
+  },
+  "build": {
+    "appId": "com.forme.app",
+    "productName": "Forme",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown Document",
+        "role": "Editor"
+      },
+      {
+        "ext": "markdown",
+        "name": "Markdown Document",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png"
+    }
+  }
+}

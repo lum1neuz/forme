@@ -1,0 +1,1482 @@
+/* ===========================================================================
+   Forme — app.css
+   Application shell: reset, layout, toolbar, sidebar, workspace, split view,
+   status bar, scrollbars, focus rings.
+   The whole app is a fixed-height flex column; only content areas scroll.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Reset / base
+   --------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* no page-level scrollbar, ever */
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition:
+    background-color var(--transition),
+    color var(--transition);
+}
+
+::selection {
+  background: var(--selection);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Visible focus ring, keyboard only. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   2. Scrollbars — thin and theme-aware
+   --------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   3. Shell layout
+   --------------------------------------------------------------------------- */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  /* containing block for the absolutely positioned #app-menu popup */
+  position: relative;
+  /* The window is frameless, so the app has to draw its own edge or it
+     disappears into a same-coloured desktop. Outlines are painted after all
+     descendants, so this hairline sits on top of the tab strip and status bar
+     instead of being covered by them. */
+  outline: 1px solid var(--border-strong);
+  outline-offset: -1px;
+}
+
+/* Maximised: Windows expects the chrome flush against the screen edge — no
+   border, no margin, nothing that would leave a seam. */
+body[data-maximized='true'] #app {
+  outline: none;
+}
+
+#body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+   3b. Title bar / tab strip — first row of #app, above the toolbar.
+   The window is frameless, so this strip is also the title bar:
+
+     [hamburger] [ tabs ... ] [+] [--- drag spacer ---] [ _ ] [ □ ] [ X ]
+
+   The strip is slightly recessed (--bg-inset); the active tab is lifted to
+   --bg so it reads as continuous with the content below it.
+
+   DRAG REGIONS — #tabbar and #titlebar-spacer are the drag surface; EVERY
+   interactive descendant must opt back out with `-webkit-app-region: no-drag`
+   or it becomes unclickable and merely drags the window. The opt-outs are
+   collected in one block below so nothing gets lost.
+   --------------------------------------------------------------------------- */
+#tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  height: var(--tabbar-h);
+  padding: 0; /* hamburger and caption buttons sit flush against the edges */
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-app-region: drag;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition);
+}
+
+/* the one flexible element in the strip — all leftover width is drag surface */
+#titlebar-spacer {
+  flex: 1 1 auto;
+  min-width: 12px;
+  align-self: stretch;
+  -webkit-app-region: drag;
+}
+
+/* --- the complete no-drag inventory for the title bar --------------------- */
+#btn-app-menu,
+#tabs,
+#tabs *,
+.tab,
+.tab-title,
+.tab-dot,
+.tab-close,
+#btn-new-tab,
+#window-controls,
+#btn-win-min,
+#btn-win-max,
+#btn-win-close,
+#app-menu,
+#app-menu * {
+  -webkit-app-region: no-drag;
+}
+
+#tabs {
+  /* 0 1 auto, not 1 1 auto: the tabs take only the width they need and
+     #titlebar-spacer keeps the rest as drag surface */
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  /* no-drag is declared in the inventory block above */
+}
+
+/* the tab strip never shows a scrollbar; it just scrolls */
+#tabs::-webkit-scrollbar {
+  height: 0;
+  width: 0;
+}
+
+.tab {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 104px;
+  max-width: 200px;
+  padding: 0 6px 0 11px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  margin-top: 2px; /* strip is now the 32px caption height */
+  background: transparent;
+  color: var(--fg-subtle);
+  font-size: 12.5px;
+  cursor: default;
+  white-space: nowrap;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+}
+
+.tab[aria-selected='true'] {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--fg);
+  /* cover the tabbar's bottom border so the active tab joins the content */
+  margin-bottom: -1px;
+  padding-bottom: 1px;
+}
+
+.tab[aria-selected='true']:hover {
+  background: var(--bg);
+}
+
+.tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* .tab-dot and .tab-close share one fixed box so the title never shifts:
+   the dot shows while dirty and un-hovered, the close button takes over on
+   hover / keyboard focus within the tab. */
+.tab-dot,
+.tab-close {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: default;
+}
+
+.tab-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+
+/* Default: the dot's box is present but invisible, so it reserves its width
+   and titles never shift when a tab becomes dirty. */
+.tab-dot {
+  visibility: hidden;
+}
+
+.tab.is-dirty .tab-dot,
+.tab[data-dirty='true'] .tab-dot {
+  visibility: visible;
+}
+
+.tab-close {
+  display: none;
+  color: var(--fg-muted);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.tab-close::before {
+  content: '\00d7';
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* On hover / keyboard focus the close button takes over the dot's box.
+   A clean (non-dirty) active tab keeps its close button showing. */
+.tab:hover .tab-close,
+.tab:focus-within .tab-close,
+.tab[aria-selected='true']:not(.is-dirty):not([data-dirty='true']) .tab-close {
+  display: inline-flex;
+}
+
+.tab:hover .tab-dot,
+.tab:focus-within .tab-dot,
+.tab[aria-selected='true']:not(.is-dirty):not([data-dirty='true']) .tab-dot {
+  display: none;
+}
+
+.tab-close:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* pinned to the right of the scroll container, so it never scrolls away */
+#btn-new-tab {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  margin: 0 6px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: default;
+  /* no-drag is declared in the inventory block above */
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+#btn-new-tab:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+#btn-new-tab svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* --- hamburger, far left, fills the strip height -------------------------- */
+#btn-app-menu {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--appmenu-w);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0; /* flush into the top-left corner */
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+#btn-app-menu:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+#btn-app-menu[aria-expanded='true'] {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+#btn-app-menu:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  border-radius: 0;
+}
+
+#btn-app-menu svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   3c. Window controls — Windows caption buttons.
+   46 x 32, square, zero gap, hard against the top-right corner so the strip
+   still looks right when the window is maximised. Do not add radius, margin
+   or padding here.
+   --------------------------------------------------------------------------- */
+#window-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+}
+
+#btn-win-min,
+#btn-win-max,
+#btn-win-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--wincontrol-w);
+  height: 100%; /* = --tabbar-h (32px) */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+#btn-win-min:hover,
+#btn-win-max:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+#btn-win-min:active,
+#btn-win-max:active {
+  background: var(--border);
+}
+
+/* the platform red — identical in both themes, by convention */
+#btn-win-close:hover {
+  background: var(--win-close-hover);
+  color: var(--win-close-fg);
+}
+
+#btn-win-close:active {
+  background: var(--win-close-active);
+  color: var(--win-close-fg);
+}
+
+/* keep the focus ring inside the button so it cannot bleed past the window edge */
+#btn-win-min:focus-visible,
+#btn-win-max:focus-visible,
+#btn-win-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  border-radius: 0;
+}
+
+.win-glyph {
+  display: block;
+  pointer-events: none;
+}
+
+/* the horizontal/rectangular glyphs snap to the pixel grid; the close X must
+   stay antialiased or the diagonals turn into staircases */
+#btn-win-min .win-glyph,
+#btn-win-max .win-glyph {
+  shape-rendering: crispEdges;
+}
+
+/* restore vs maximise: exactly one glyph is visible. The controller may flag
+   either the button itself or <body>; both are honoured. */
+.glyph-restore,
+#btn-win-max[data-maximized='true'] .glyph-maximize,
+body[data-maximized='true'] #btn-win-max .glyph-maximize {
+  display: none;
+}
+
+#btn-win-max[data-maximized='true'] .glyph-restore,
+body[data-maximized='true'] #btn-win-max .glyph-restore {
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   3d. Application menu popup (#app-menu)
+   Anchored under #btn-app-menu, floats over the toolbar and the editor.
+   The controller fills it with .menu-item / .menu-separator /
+   .menu-section-label; none of that markup is emitted by index.html.
+   --------------------------------------------------------------------------- */
+#app-menu {
+  position: absolute;
+  top: var(--tabbar-h);
+  left: 4px;
+  z-index: 400;
+  min-width: 240px;
+  max-width: 340px;
+  max-height: calc(100vh - var(--tabbar-h) - 20px);
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+  font-size: 13px;
+  user-select: none;
+  animation: app-menu-in var(--transition-fast) cubic-bezier(0.32, 0.72, 0.35, 1);
+}
+
+/* the `hidden` attribute must win — #app-menu never sets `display` itself */
+#app-menu[hidden] {
+  display: none;
+}
+
+@keyframes app-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app-menu {
+    animation: none;
+  }
+}
+
+/* --- items ---------------------------------------------------------------- */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+/* Check-mark slot. Reserved on EVERY item — checked or not — so the labels of
+   a whole menu stay on one column. */
+.menu-item::before {
+  content: '\2713';
+  flex: 0 0 auto;
+  width: 14px;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  visibility: hidden;
+}
+
+.menu-item[data-checked='true']::before {
+  visibility: visible;
+}
+
+.menu-item[data-checked='true'] {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.menu-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-item-accel {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: var(--space-4);
+  color: var(--fg-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* `:focus` as well as `:focus-visible`: the controller moves focus between
+   items programmatically on arrow keys, and the highlight must follow. */
+.menu-item:hover,
+.menu-item:focus,
+.menu-item.is-active,
+.menu-item[data-active='true'] {
+  background: var(--accent-muted);
+}
+
+.menu-item:focus-visible {
+  background: var(--accent-muted);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.menu-item[disabled],
+.menu-item[aria-disabled='true'] {
+  color: var(--fg-subtle);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.menu-item[disabled] .menu-item-accel,
+.menu-item[aria-disabled='true'] .menu-item-accel {
+  color: inherit;
+}
+
+.menu-item svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* --- structure ------------------------------------------------------------ */
+.menu-separator {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border);
+}
+
+.menu-section-label {
+  padding: 8px 10px 3px 30px; /* 8 left pad + 14 check slot + 8 gap = label column */
+  color: var(--fg-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+   4. Toolbar
+   --------------------------------------------------------------------------- */
+#toolbar {
+  flex: 0 0 auto;
+  height: var(--toolbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  /* NOT a drag region: #tabbar is the title bar now. Leaving drag here would
+     make the toolbar's empty areas swallow clicks. */
+  transition:
+    background-color var(--transition),
+    border-color var(--transition);
+}
+
+#toolbar-left,
+#toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+#format-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* format bar is meaningless without an editor */
+body[data-mode='reading'] #format-bar {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* generic toolbar button ---------------------------------------------------- */
+.tb-btn,
+.fmt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  flex: 0 0 auto;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.tb-btn:hover,
+.fmt-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.tb-btn:active,
+.fmt-btn:active {
+  background: var(--bg-inset);
+}
+
+.tb-btn[disabled],
+.fmt-btn[disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* active/toggled state, driven by aria-pressed or .is-active from the controller */
+.fmt-btn.is-active,
+.fmt-btn[aria-pressed='true'] {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.tb-btn svg,
+.fmt-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* separators ---------------------------------------------------------------- */
+.tb-sep,
+.fmt-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  margin: 0 var(--space-2);
+  background: var(--border);
+}
+
+/* ---------------------------------------------------------------------------
+   5. Mode switch (segmented control)
+   --------------------------------------------------------------------------- */
+#mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: default;
+  white-space: nowrap;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.mode-btn svg {
+  display: block;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.mode-btn:hover {
+  color: var(--fg);
+}
+
+.mode-btn[aria-pressed='true'] {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-btn[aria-pressed='true'] svg {
+  opacity: 1;
+}
+
+/* the window gets tight before the labels do — drop them, keep the icons */
+@media (max-width: 1080px) {
+  .mode-label {
+    display: none;
+  }
+  .mode-btn {
+    padding: 0 7px;
+  }
+}
+
+/* The theme button shows the icon for the theme you would switch TO, not the
+   one you are in: a sun while dark (click for light), a moon while light. */
+#btn-theme .icon-moon {
+  display: none;
+}
+#btn-theme .icon-sun {
+  display: block;
+}
+:root[data-theme='light'] #btn-theme .icon-sun {
+  display: none;
+}
+:root[data-theme='light'] #btn-theme .icon-moon {
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   6. Activity bar + sidebar (VS Code-style rail + one swappable panel)
+
+   #body lays out: #activitybar | #sidebar | #sidebar-resizer | #workspace
+   The rail is never hidden — collapsing the sidebar leaves it as the only way
+   back. Sidebar width lives in --sidebar-width on #body.
+   --------------------------------------------------------------------------- */
+#body {
+  --sidebar-width: 260px;
+}
+
+/* -- icon rail -------------------------------------------------------------- */
+#activitybar {
+  flex: 0 0 auto;
+  width: var(--activitybar-w);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--space-1) 0;
+  background: var(--bg-inset);
+  border-right: 1px solid var(--border);
+  user-select: none;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition);
+}
+
+.activity-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--activitybar-w);
+  height: var(--activitybar-w);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: default;
+  transition: color var(--transition-fast);
+}
+
+.activity-item svg {
+  display: block;
+  pointer-events: none;
+}
+
+.activity-item:hover {
+  color: var(--fg-muted);
+}
+
+/* the active marker is a pseudo-element, not a border, so the icon never shifts */
+.activity-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.activity-item[aria-selected='true'],
+.activity-item.is-active {
+  color: var(--fg);
+}
+
+.activity-item[aria-selected='true']::before,
+.activity-item.is-active::before {
+  opacity: 1;
+}
+
+/* a collapsed sidebar means no panel is really "open" — dim the marker */
+body[data-sidebar='hidden'] .activity-item[aria-selected='true']::before,
+body[data-sidebar='hidden'] .activity-item.is-active::before {
+  opacity: 0.4;
+}
+
+.activity-item:focus-visible {
+  outline-offset: -3px;
+}
+
+/* -- sidebar shell ---------------------------------------------------------- */
+#sidebar {
+  flex: 0 0 auto;
+  width: var(--sidebar-width);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  /* overflow:hidden + the fixed inner width below keep the contents from
+     reflowing raggedly while the collapse animates */
+  overflow: hidden;
+  transition:
+    width var(--transition-slow),
+    background-color var(--transition);
+}
+
+body[data-sidebar='hidden'] #sidebar {
+  width: 0;
+}
+
+/* -- header strip ----------------------------------------------------------- */
+#sidebar-header {
+  flex: 0 0 auto;
+  width: var(--sidebar-width);
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  user-select: none;
+}
+
+#sidebar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sidebar-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* header actions stay quiet until the sidebar is being used */
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+#sidebar:hover #sidebar-actions,
+#sidebar:focus-within #sidebar-actions {
+  opacity: 1;
+}
+
+.side-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.side-action:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.side-action svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* -- panels ----------------------------------------------------------------- */
+#sidebar-panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: var(--sidebar-width); /* fixed inner width: no reflow while animating */
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-panels > section[data-view] {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--space-2) var(--space-4);
+}
+
+/* exactly one panel is visible, chosen by body[data-sidebar-view] */
+body[data-sidebar-view='files'] #sidebar-panels > section[data-view='files'],
+body[data-sidebar-view='outline'] #sidebar-panels > section[data-view='outline'],
+body[data-sidebar-view='recent'] #sidebar-panels > section[data-view='recent'] {
+  display: block;
+}
+
+/* the chosen folder's path, under the header */
+.folder-crumb {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: 11.5px;
+  color: var(--fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-crumb:empty,
+#folder-name:empty {
+  display: none;
+}
+
+/* -- resizer (same idea as #split-divider) ---------------------------------- */
+#sidebar-resizer {
+  flex: 0 0 auto;
+  width: 5px;
+  margin-left: -2px; /* straddle the sidebar's right edge */
+  align-self: stretch;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+  transition: background-color var(--transition-fast);
+}
+
+#sidebar-resizer::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
+  transition:
+    background-color var(--transition-fast),
+    width var(--transition-fast);
+}
+
+#sidebar-resizer:hover::before,
+#sidebar-resizer.is-dragging::before,
+#sidebar-resizer:focus-visible::before {
+  background: var(--accent);
+  width: 2px;
+}
+
+#sidebar-resizer:focus-visible {
+  outline: none;
+  background: var(--accent-muted);
+}
+
+/* collapsed: the resizer goes away, but the border between rail and workspace
+   still has to be drawn, so keep the hairline and drop the interaction. */
+body[data-sidebar='hidden'] #sidebar-resizer {
+  width: 1px;
+  margin-left: 0;
+  pointer-events: none;
+  cursor: default;
+}
+
+body[data-sidebar='hidden'] #sidebar-resizer::before {
+  background: var(--border);
+  width: 1px;
+}
+
+/* -- list rows shared by all three panels ----------------------------------- */
+.side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.side-list li {
+  min-width: 0;
+}
+
+/* Rows are <button> elements created by the controller; style a bare button
+   and an anchor so either shape looks right. */
+.side-list button,
+.side-list a,
+.outline-item,
+.recent-item {
+  display: block;
+  width: 100%;
+  padding: 4px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
+  text-decoration: none;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.side-list button:hover,
+.side-list a:hover,
+.outline-item:hover,
+.recent-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.side-list .is-active > button,
+.side-list button.is-active,
+.side-list a.is-active,
+.outline-item[data-active='true'],
+.outline-item.is-active,
+.recent-item.is-active {
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+/* outline indentation by heading level, on the <li> or the row itself */
+#outline .side-list li[data-level='1'] > *,
+#outline .outline-item[data-level='1'] { padding-left: var(--space-2); font-weight: 550; color: var(--fg); }
+#outline .side-list li[data-level='2'] > *,
+#outline .outline-item[data-level='2'] { padding-left: calc(var(--space-2) + 12px); }
+#outline .side-list li[data-level='3'] > *,
+#outline .outline-item[data-level='3'] { padding-left: calc(var(--space-2) + 24px); }
+#outline .side-list li[data-level='4'] > *,
+#outline .outline-item[data-level='4'] { padding-left: calc(var(--space-2) + 36px); }
+#outline .side-list li[data-level='5'] > *,
+#outline .outline-item[data-level='5'] { padding-left: calc(var(--space-2) + 48px); }
+#outline .side-list li[data-level='6'] > *,
+#outline .outline-item[data-level='6'] { padding-left: calc(var(--space-2) + 60px); font-size: 12px; }
+
+/* recent files show the basename large and the folder quietly after it */
+.recent-item .recent-dir {
+  margin-left: 0.5em;
+  color: var(--fg-subtle);
+  font-size: 0.92em;
+}
+
+/* -- empty states ----------------------------------------------------------- */
+.empty {
+  margin: var(--space-2) 0 0;
+  padding: 2px var(--space-2);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--fg-subtle);
+}
+
+/* hide the empty note as soon as the panel's list has content */
+#sidebar-panels > section:has(.side-list li) .empty {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   6b. Folder tree
+   Rows are <li class="tree-item" data-path data-depth style="--depth:N">.
+   Indentation is driven by that inline --depth.
+   --------------------------------------------------------------------------- */
+.tree-list {
+  --tree-indent: 12px;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding-right: var(--space-2);
+  padding-left: calc(var(--space-3) + var(--tree-indent) * var(--depth, 0));
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.tree-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.tree-item[data-active='true'] {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.tree-item[data-dir='true'] {
+  color: var(--fg);
+}
+
+/* disclosure chevron — directories only */
+.tree-twisty {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: -14px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: default;
+  transform: rotate(0deg);
+  transition: transform var(--transition-fast);
+}
+
+.tree-item[data-open='true'] .tree-twisty,
+.tree-twisty[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+.tree-twisty svg {
+  display: block;
+  pointer-events: none;
+}
+
+.tree-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-subtle);
+  opacity: 0.85;
+}
+
+.tree-item[data-active='true'] .tree-icon {
+  color: inherit;
+  opacity: 1;
+}
+
+.tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   7. Workspace + mode host
+   --------------------------------------------------------------------------- */
+#workspace {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--bg);
+  transition: background-color var(--transition);
+}
+
+#mode-host {
+  --split-ratio: 0.5;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Reading mode scrolls its own content; the mode owns the inner DOM. */
+body[data-mode='reading'] #mode-host {
+  overflow: hidden auto;
+}
+
+/* ---------------------------------------------------------------------------
+   8. Split view
+   #mode-host becomes a row of: .split-pane#pane-a | #split-divider | #pane-b
+   Pane widths come from --split-ratio, which the controller updates on drag.
+   --------------------------------------------------------------------------- */
+body[data-mode='split'] #mode-host {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.split-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  position: relative;
+}
+
+body[data-mode='split'] #pane-a {
+  flex: var(--split-ratio) 1 0%;
+}
+
+body[data-mode='split'] #pane-b {
+  flex: calc(1 - var(--split-ratio)) 1 0%;
+  background: var(--bg);
+}
+
+#split-divider {
+  flex: 0 0 auto;
+  width: 6px;
+  align-self: stretch;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+  transition: background-color var(--transition-fast);
+}
+
+/* the visible 1px hairline sits in the middle of the 6px hit area */
+#split-divider::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
+  transition:
+    background-color var(--transition-fast),
+    width var(--transition-fast);
+}
+
+#split-divider:hover::before,
+#split-divider.is-dragging::before {
+  background: var(--accent);
+  width: 2px;
+}
+
+#split-divider:focus-visible {
+  outline: none;
+  background: var(--accent-muted);
+}
+
+#split-divider:focus-visible::before {
+  background: var(--accent);
+  width: 2px;
+}
+
+/* In split view each pane uses its full width — a centred --line-width column
+   would leave both panes looking mostly empty. */
+body[data-mode='split'] .split-pane .markdown-body {
+  max-width: none;
+  padding-left: var(--space-5);
+  padding-right: var(--space-5);
+}
+
+/* ---------------------------------------------------------------------------
+   9. Status bar
+   --------------------------------------------------------------------------- */
+#statusbar {
+  flex: 0 0 auto;
+  height: var(--statusbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  color: var(--fg-subtle);
+  font-size: 11.5px;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition);
+}
+
+.status-item {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#status-file {
+  color: var(--fg-muted);
+  max-width: 44vw;
+}
+
+#status-dirty {
+  color: var(--warning);
+  flex: 0 0 auto;
+}
+
+#status-dirty:empty {
+  display: none;
+}
+
+.status-spacer {
+  flex: 1 1 auto;
+}
+
+#status-mode,
+#status-stats {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* understated statusbar affordance — #btn-wrap (soft-wrap toggle) */
+#btn-wrap,
+.status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  height: 18px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-subtle);
+  font-size: 11.5px;
+  cursor: default;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.status-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+.status-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+}
+
+.status-btn[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   10. Reduced motion
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

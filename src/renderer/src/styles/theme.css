@@ -1,0 +1,240 @@
+/* ===========================================================================
+   Forme — theme.css
+   Design tokens. Every colour in the app resolves through a token defined here.
+
+   The controller resolves the `system` setting itself and always writes a
+   concrete `data-theme="dark" | "light"` onto <html>. This file therefore never
+   keys off prefers-color-scheme (the only exception is the pre-paint fallback
+   script in index.html).
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Shared, theme-independent tokens
+   --------------------------------------------------------------------------- */
+:root {
+  /* -- type families ------------------------------------------------------ */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI',
+    Inter, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-serif:
+    'Iowan Old Style', 'Palatino Linotype', Palatino, 'Source Serif Pro',
+    Charter, Georgia, 'Times New Roman', Cambria, serif;
+  --font-mono:
+    'Cascadia Code', 'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas,
+    'Liberation Mono', 'Roboto Mono', Menlo, monospace;
+
+  /* UI chrome always uses the system stack; content uses --font-body, which is
+     switched by body[data-font] below. */
+  --font-ui: var(--font-sans);
+  --font-body: var(--font-sans);
+
+  /* -- geometry ----------------------------------------------------------- */
+  --radius: 8px;
+  --radius-sm: 5px;
+  --radius-lg: 12px;
+
+  /* -- spacing scale (4px base) ------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* -- chrome metrics ----------------------------------------------------- */
+  --toolbar-h: 44px;
+  --statusbar-h: 26px;
+  /* The tab strip doubles as the (frameless) title bar, so its height is the
+     Windows caption height: the 46x32 window controls and the 40x32 app-menu
+     button fill it edge to edge with no gap at the top-right corner. */
+  --tabbar-h: 32px;
+  --wincontrol-w: 46px;
+  --appmenu-w: 40px;
+  --activitybar-w: 48px;
+  /* the sidebar's own width lives in --sidebar-width on #body (app.css),
+     because the controller writes it there while dragging #sidebar-resizer */
+
+  /* -- content metrics ---------------------------------------------------- */
+  --line-width: 76ch; /* overridden by body[data-width] */
+  --content-font-size: 16px; /* controller overrides from settings.fontSize */
+  --editor-font-size: 14.5px;
+  --content-line-height: 1.72;
+
+  /* -- window controls ----------------------------------------------------
+     The close-button red is a Windows platform convention, not a theme colour:
+     it is deliberately the same in dark and light. */
+  --win-close-hover: #e81123;
+  --win-close-active: #f1707a;
+  --win-close-fg: #ffffff;
+
+  /* -- motion ------------------------------------------------------------- */
+  --transition: 140ms cubic-bezier(0.32, 0.72, 0.35, 1);
+  --transition-fast: 120ms cubic-bezier(0.32, 0.72, 0.35, 1);
+  --transition-slow: 160ms cubic-bezier(0.32, 0.72, 0.35, 1);
+}
+
+/* content family switch --------------------------------------------------- */
+body[data-font='sans'] {
+  --font-body: var(--font-sans);
+}
+body[data-font='serif'] {
+  --font-body: var(--font-serif);
+}
+body[data-font='mono'] {
+  --font-body: var(--font-mono);
+}
+
+/* content column width switch --------------------------------------------- */
+body[data-width='narrow'] {
+  --line-width: 60ch;
+}
+body[data-width='normal'] {
+  --line-width: 76ch;
+}
+body[data-width='wide'] {
+  --line-width: 100ch;
+}
+
+/* ---------------------------------------------------------------------------
+   2. Dark theme (default)
+   Soft near-black with layered elevation, muted indigo accent.
+   --------------------------------------------------------------------------- */
+:root[data-theme='dark'] {
+  /* surfaces */
+  --bg: #16181d;
+  --bg-elevated: #1c1f26;
+  --bg-inset: #111319;
+  --bg-hover: #242832;
+
+  /* text */
+  --fg: #e4e6eb;
+  --fg-muted: #a1a7b4;
+  --fg-subtle: #70768a;
+
+  /* lines */
+  --border: #272b35;
+  --border-strong: #3a4050;
+
+  /* accent */
+  --accent: #6f8fe8;
+  --accent-fg: #11141b;
+  --accent-muted: rgba(111, 143, 232, 0.16);
+
+  /* semantic */
+  --danger: #e5798a;
+  --success: #67c08c;
+  --warning: #e0b063;
+
+  /* code + selection */
+  --code-bg: #1b1e26;
+  --code-fg: #d6dae2;
+  --selection: rgba(111, 143, 232, 0.28);
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.44), 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.38);
+
+  /* scrollbars (extension tokens) */
+  --scrollbar-thumb: #333846;
+  --scrollbar-thumb-hover: #454c5e;
+
+  /* highlight.js token palette (extension tokens) */
+  --hl-keyword: #c48ce0;
+  --hl-string: #93c98a;
+  --hl-comment: #6b7285;
+  --hl-number: #e0a36a;
+  --hl-function: #7fa9f0;
+  --hl-title: #7fa9f0;
+  --hl-attr: #dfb066;
+  --hl-built_in: #63c0c4;
+  --hl-literal: #e0a36a;
+  --hl-type: #63c0c4;
+  --hl-variable: #e4e6eb;
+  --hl-tag: #e5798a;
+  --hl-name: #e5798a;
+  --hl-meta: #8a90a3;
+  --hl-symbol: #c48ce0;
+  --hl-operator: #a1a7b4;
+  --hl-punctuation: #8a90a3;
+  --hl-deletion-fg: #f0a0ac;
+  --hl-deletion-bg: rgba(229, 121, 138, 0.14);
+  --hl-addition-fg: #8fd5a8;
+  --hl-addition-bg: rgba(103, 192, 140, 0.14);
+}
+
+/* ---------------------------------------------------------------------------
+   3. Light theme
+   Warm off-white paper, same accent family shifted for contrast on light.
+   --------------------------------------------------------------------------- */
+:root[data-theme='light'] {
+  /* surfaces */
+  --bg: #fdfdfc;
+  --bg-elevated: #ffffff;
+  --bg-inset: #f4f3f0;
+  --bg-hover: #edece7;
+
+  /* text */
+  --fg: #22242a;
+  --fg-muted: #5b6068;
+  --fg-subtle: #8b8f99;
+
+  /* lines */
+  --border: #e4e2dc;
+  --border-strong: #ccc9c1;
+
+  /* accent */
+  --accent: #4a63c8;
+  --accent-fg: #ffffff;
+  --accent-muted: rgba(74, 99, 200, 0.12);
+
+  /* semantic */
+  --danger: #c2413a;
+  --success: #2f7d52;
+  --warning: #9d6f1c;
+
+  /* code + selection */
+  --code-bg: #f4f3f0;
+  --code-fg: #2b2d33;
+  --selection: rgba(74, 99, 200, 0.18);
+
+  --shadow: 0 1px 2px rgba(40, 36, 28, 0.06), 0 8px 24px -8px rgba(40, 36, 28, 0.14);
+  --shadow-sm: 0 1px 2px rgba(40, 36, 28, 0.07);
+
+  /* scrollbars (extension tokens) */
+  --scrollbar-thumb: #d5d2ca;
+  --scrollbar-thumb-hover: #bebbb2;
+
+  /* highlight.js token palette (extension tokens) */
+  --hl-keyword: #8250a8;
+  --hl-string: #326e42;
+  --hl-comment: #8b8f99;
+  --hl-number: #9a5722;
+  --hl-function: #2f56b3;
+  --hl-title: #2f56b3;
+  --hl-attr: #8a6216;
+  --hl-built_in: #0f6d72;
+  --hl-literal: #9a5722;
+  --hl-type: #0f6d72;
+  --hl-variable: #22242a;
+  --hl-tag: #b03a35;
+  --hl-name: #b03a35;
+  --hl-meta: #767a84;
+  --hl-symbol: #8250a8;
+  --hl-operator: #5b6068;
+  --hl-punctuation: #767a84;
+  --hl-deletion-fg: #8f2b25;
+  --hl-deletion-bg: rgba(194, 65, 58, 0.1);
+  --hl-addition-fg: #1f6040;
+  --hl-addition-bg: rgba(47, 125, 82, 0.1);
+}
+
+/* ---------------------------------------------------------------------------
+   4. Reduced motion — kill every transition defined against these tokens.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition: 0ms linear;
+    --transition-fast: 0ms linear;
+    --transition-slow: 0ms linear;
+  }
+}
