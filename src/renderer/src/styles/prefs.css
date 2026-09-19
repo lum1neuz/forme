@@ -50,12 +50,17 @@
 #prefs-dialog {
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas:
     'header header'
-    'nav    body';
+    'nav    body'
+    'footer footer';
   width: min(720px, calc(100vw - 80px));
-  max-height: min(560px, calc(100vh - 80px));
+  /* Fixed height, not max-height: every pane holds a different number of rows,
+     and sizing to content made the dialog jump as you switched tabs. A short
+     pane now just leaves empty space below. #prefs-body is the scroller, so a
+     tall pane still fits when the window is small. */
+  height: min(560px, calc(100vh - 80px));
   min-height: 0;
   overflow: hidden; /* clip children to the rounded corners */
   background: var(--bg-elevated);
@@ -601,6 +606,39 @@ body:not([data-prefs-pane]) .prefs-pane[data-pane='appearance'] {
    The global ring (app.css) uses outline-offset: 2px, which collides with the
    dense rows here, so everything inside the dialog draws its ring tight.
    --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   14. Footer — Cancel / Apply
+   Changes preview live but are only written to disk on Apply; Cancel restores
+   what was there when the dialog opened.
+   --------------------------------------------------------------------------- */
+
+#prefs-footer {
+  grid-area: footer;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.prefs-button.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.prefs-button.is-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.prefs-button.is-primary:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 #prefs-dialog :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -641,11 +679,12 @@ body:not([data-prefs-pane]) .prefs-pane[data-pane='appearance'] {
 @media (max-width: 700px) {
   #prefs-dialog {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     grid-template-areas:
       'header'
       'nav'
-      'body';
+      'body'
+      'footer';
   }
 
   #prefs-nav {
