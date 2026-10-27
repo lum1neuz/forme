@@ -1697,12 +1697,14 @@ async function boot () {
     if (fn) fn(payload)
   })
 
-  api.onOpenExternalFile((res) => {
+  const openExternal = (res) => {
     if (!res) return
     const existing = focusExisting(res.path)
     if (existing) setActive(existing.id)
     else adoptOpened(res)
-  })
+  }
+  // Main only pushes here after takePendingFile below, so nothing lands mid-restore.
+  api.onOpenExternalFile(openExternal)
 
   api.folder?.onChanged?.(() => refreshFolder())
 
@@ -1780,6 +1782,15 @@ async function boot () {
   repaintAll()
   // Record the restored set straight away, including any recovered drafts.
   persistSession()
+
+  // The file the app was launched with (double-click, Open with, CLI) opens last,
+  // so the restored session cannot bury it. It replaces an untouched welcome tab.
+  const launchFile = await api.app.takePendingFile()
+  if (launchFile) {
+    const [only] = state.docs
+    if (state.docs.length === 1 && only.ephemeral && !isDirty(only)) state.docs = []
+    openExternal(launchFile)
+  }
 }
 
 boot().catch((err) => {

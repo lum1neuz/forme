@@ -87,7 +87,9 @@ const api = {
 
   app: {
     // Answer to the `app:before-quit` menu command: 'quit' | 'cancel' | 'wait'.
-    quitResponse: (decision) => ipcRenderer.invoke('app:quitResponse', decision)
+    quitResponse: (decision) => ipcRenderer.invoke('app:quitResponse', decision),
+    // -> { path, content } | null  the file the app was launched with; call once booted
+    takePendingFile: () => ipcRenderer.invoke('app:takePendingFile')
   },
 
   win: {

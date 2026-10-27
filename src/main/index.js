@@ -111,8 +111,14 @@ const DRAFT_MAX_WARNINGS = 20
 
 let mainWindow = null
 let rendererReady = false
-/** File waiting to be handed to the renderer once it has finished loading. */
+/** File waiting to be handed to the renderer once it has finished booting. */
 let pendingExternalFile = null
+/**
+ * True once the renderer has restored its session and asked for the launch file.
+ * Separate from rendererReady: a page that has loaded may still be restoring tabs,
+ * and a file pushed then is either missed or buried under the restored session.
+ */
+let rendererTakesFiles = false
 
 let folderWatcher = null
 let folderWatchPath = null
@@ -245,19 +251,11 @@ async function openExternalFile(filePath) {
   addRecentFile(result.path)
   refreshRecent()
 
-  if (mainWindow && !mainWindow.isDestroyed() && rendererReady) {
+  if (mainWindow && !mainWindow.isDestroyed() && rendererTakesFiles) {
     mainWindow.webContents.send(OPEN_FILE_CHANNEL, result)
   } else {
     pendingExternalFile = result
   }
-}
-
-function flushPendingExternalFile() {
-  if (!pendingExternalFile) return
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  const payload = pendingExternalFile
-  pendingExternalFile = null
-  mainWindow.webContents.send(OPEN_FILE_CHANNEL, payload)
 }
 
 /* ---------------------------------------------------------- folder browser */
@@ -1296,7 +1294,6 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     rendererReady = true
-    flushPendingExternalFile()
     // The custom title bar has to start with the right maximize/restore icon,
     // including after a reload of an already-maximized window.
     pushMaximizeState(win)
@@ -1304,6 +1301,7 @@ function createWindow() {
 
   mainWindow.webContents.on('did-start-loading', () => {
     rendererReady = false
+    rendererTakesFiles = false
   })
 
   for (const evt of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) {
@@ -1319,6 +1317,7 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
     rendererReady = false
+    rendererTakesFiles = false
     stopFolderWatch()
     stopThemeWatch()
   })
@@ -1680,6 +1679,15 @@ function registerIpc() {
   //   'quit'   -> nothing dirty (or the user said go ahead), tear down now
   //   'cancel' -> user backed out
   //   'wait'   -> renderer is prompting; hold the timeout open
+  // The renderer calls this once its session is restored. It returns the file the
+  // app was launched with (if any); later files are pushed on OPEN_FILE_CHANNEL.
+  ipcMain.handle('app:takePendingFile', () => {
+    rendererTakesFiles = true
+    const payload = pendingExternalFile
+    pendingExternalFile = null
+    return payload
+  })
+
   ipcMain.handle('app:quitResponse', async (_event, decision) => {
     const answer = decision === true ? 'quit' : decision === false ? 'cancel' : decision
     clearQuitAckTimer()
