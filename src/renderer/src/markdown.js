@@ -247,6 +247,25 @@ export function renderMarkdown(src) {
   return DOMPurify.sanitize(html, PURIFY_CONFIG)
 }
 
+/**
+ * Sanitize HTML that did not come from markdown — EPUB chapters (Addendum F).
+ * Same rules as rendered markdown, plus inline SVG (book covers often use it),
+ * minus `class`: the book's stylesheet is dropped, and its class names must not
+ * pick up the app's own styles.
+ *
+ * @param {string} html
+ * @returns {string} HTML
+ */
+export function sanitizeBookHtml(html) {
+  installPurifyHooks()
+  return DOMPurify.sanitize(String(html == null ? '' : html), {
+    ...PURIFY_CONFIG,
+    USE_PROFILES: { html: true, svg: true },
+    ADD_ATTR: PURIFY_CONFIG.ADD_ATTR.filter((a) => a !== 'class'),
+    FORBID_ATTR: [...PURIFY_CONFIG.FORBID_ATTR, 'class']
+  })
+}
+
 /* ------------------------------------------------------------------ *
  * turndown (HTML -> markdown)                                         *
  * ------------------------------------------------------------------ */

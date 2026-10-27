@@ -790,6 +790,12 @@ body[data-mode='reading'] #format-bar {
   color: var(--fg);
 }
 
+/* editing views are unavailable while a book (EPUB) is open */
+.mode-btn[disabled] {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .mode-btn[aria-pressed='true'] {
   background: var(--bg-elevated);
   color: var(--accent);

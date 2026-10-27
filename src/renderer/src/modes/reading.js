@@ -25,6 +25,8 @@ export function createReadingMode(opts = {}) {
   let root = null
   let article = null
   let source = ''
+  /** A book from setBook() replaces the markdown entirely (Addendum F). */
+  let book = null
   let mounted = false
   let rendered = false
 
@@ -110,7 +112,8 @@ export function createReadingMode(opts = {}) {
   function render(preserveScroll) {
     if (!article || !root) return
     const fraction = preserveScroll ? scrollFractionOf(root) : 0
-    article.innerHTML = renderMarkdown(source)
+    // A book's HTML was sanitized when it was built (epub.js).
+    article.innerHTML = book ? book.html : renderMarkdown(source)
     lockCheckboxes()
     attachCopyButtons()
     if (preserveScroll) {
@@ -189,13 +192,23 @@ export function createReadingMode(opts = {}) {
 
     setMarkdown(markdownText) {
       const text = String(markdownText == null ? '' : markdownText)
-      const unchanged = text === source
+      const unchanged = text === source && !book
       source = text
+      book = null
       if (!mounted) return
       if (unchanged && rendered) return
       // In split view this runs on every debounced keystroke — keep the reader
       // where it was instead of jumping to the top.
       render(rendered)
+      rendered = true
+    },
+
+    /** Show a book built by epub.js ({html, outline, stats}) instead of markdown. */
+    setBook(next) {
+      book = next || null
+      source = ''
+      if (!mounted) return
+      render(false)
       rendered = true
     },
 
@@ -229,11 +242,11 @@ export function createReadingMode(opts = {}) {
     setWrap() {},
 
     getStats() {
-      return countStats(source)
+      return book ? book.stats : countStats(source)
     },
 
     getOutline() {
-      return extractOutline(source)
+      return book ? book.outline : extractOutline(source)
     },
 
     /** Read-only: formatting commands are no-ops by design. */

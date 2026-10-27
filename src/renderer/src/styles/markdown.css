@@ -864,3 +864,21 @@ body[data-wrap='off'] .ProseMirror pre {
 .ProseMirror .hljs-bullet {
   color: var(--hl-punctuation);
 }
+
+/* ---------------------------------------------------------------------------
+   EPUB books (Addendum F) — one <section> per chapter, in the app's theme
+   --------------------------------------------------------------------------- */
+.markdown-body .epub-chapter + .epub-chapter {
+  margin-top: 3em;
+  padding-top: 2em;
+  border-top: 1px solid var(--border);
+}
+
+/* cover pages often size their SVG to 100% of a page that no longer exists */
+.markdown-body .epub-chapter svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 85vh;
+  margin: 0 auto;
+}

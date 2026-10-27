@@ -24,6 +24,7 @@ import builtinEmber from '../../resources/themes/ember.json'
 import builtinForest from '../../resources/themes/forest.json'
 import builtinObsidian from '../../resources/themes/obsidian.json'
 import builtinParchment from '../../resources/themes/parchment.json'
+import { readEpubFile } from './epub.js'
 import { applyMenuState, buildMenu } from './menu.js'
 import {
   addRecentFile,
@@ -72,11 +73,12 @@ const OPENABLE_EXTENSIONS = new Set([
   '.mdtext',
   '.mdtxt',
   '.text',
-  '.txt'
+  '.txt',
+  '.epub'
 ])
 
-/** Folder-browser scan limits (Addendum A). */
-const FOLDER_MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdown', '.mkd'])
+/** Folder-browser scan limits (Addendum A). EPUBs are listed too (Addendum F). */
+const FOLDER_MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdown', '.mkd', '.epub'])
 const FOLDER_MAX_DEPTH = 8
 const FOLDER_MAX_ENTRIES = 5000
 const FOLDER_WATCH_DEBOUNCE = 300
@@ -178,9 +180,19 @@ async function readTextFile(filePath) {
   }
 }
 
+/** Markdown/text comes back as {path, content}; an EPUB as {path, epub} (Addendum F). */
+function readOpenableFile(filePath) {
+  if (typeof filePath === 'string' && extname(filePath).toLowerCase() === '.epub') {
+    return readEpubFile(filePath)
+  }
+  return readTextFile(filePath)
+}
+
 async function writeTextFile(filePath, content) {
   try {
     const abs = resolve(filePath)
+    // Books are read-only (Addendum F); never let a save turn one into markdown.
+    if (extname(abs).toLowerCase() === '.epub') return { error: 'EPUB books are read-only.' }
     await writeFile(abs, typeof content === 'string' ? content : String(content ?? ''), 'utf8')
     return { ok: true, path: abs }
   } catch (err) {
@@ -242,7 +254,7 @@ function markdownFileFromArgv(argv) {
 
 async function openExternalFile(filePath) {
   if (!filePath) return
-  const result = await readTextFile(filePath)
+  const result = await readOpenableFile(filePath)
   if (result.error) {
     dialog.showErrorBox('Could not open file', `${filePath}\n\n${result.error}`)
     return
@@ -1420,10 +1432,12 @@ function registerIpc() {
     try {
       const win = windowOf(event)
       const options = {
-        title: 'Open Markdown File',
+        title: 'Open File',
         properties: ['openFile'],
         filters: [
+          { name: 'Markdown and EPUB', extensions: [...MARKDOWN_EXTENSIONS, 'epub'] },
           { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
+          { name: 'EPUB Books', extensions: ['epub'] },
           { name: 'All Files', extensions: ['*'] }
         ]
       }
@@ -1433,7 +1447,7 @@ function registerIpc() {
       if (result.canceled || !result.filePaths || !result.filePaths.length) {
         return { canceled: true }
       }
-      const file = await readTextFile(result.filePaths[0])
+      const file = await readOpenableFile(result.filePaths[0])
       if (file.error) return file
       addRecentFile(file.path)
       refreshRecent()
@@ -1445,7 +1459,7 @@ function registerIpc() {
 
   ipcMain.handle('file:openPath', async (_event, filePath) => {
     if (typeof filePath !== 'string' || !filePath) return { error: 'No file path given' }
-    const file = await readTextFile(filePath)
+    const file = await readOpenableFile(filePath)
     if (file.error) return file
     addRecentFile(file.path)
     refreshRecent()

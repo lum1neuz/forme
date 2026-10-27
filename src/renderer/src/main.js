@@ -13,6 +13,7 @@ import { createSourceMode } from './modes/source.js'
 import { createRichMode } from './modes/rich.js'
 import { createReadingMode } from './modes/reading.js'
 import { renderMarkdown } from './markdown.js'
+import { buildBook } from './epub.js'
 
 const api = window.forme
 
@@ -48,6 +49,8 @@ const state = {
   mounted: [],
   /** the mode instance that owns the markdown in the current layout */
   primary: null,
+  /** the doc the current layout was mounted for — not always the active one mid-switch */
+  mountedDocId: null,
   folder: { path: null, entries: [], truncated: false, open: new Set() },
   /** Transient dark/light flip while following the OS; cleared when the OS changes. */
   themeOverride: null,
@@ -61,7 +64,8 @@ function activeDoc () {
 }
 
 function isDirty (doc) {
-  return doc ? doc.markdown !== doc.savedMarkdown : false
+  // A book is read-only; nothing it holds can ever need saving.
+  return doc && !doc.book ? doc.markdown !== doc.savedMarkdown : false
 }
 
 /** Stable per-document id used as the draft filename; survives restarts. */
@@ -301,9 +305,14 @@ function buildMode (id, container, onChange) {
   return mode
 }
 
-/** Pull the live text and scroll position out of the mounted modes. */
+/**
+ * Pull the live text and scroll position out of the mounted modes, into the doc
+ * they were mounted for. Callers switch `activeId` before remounting, so the
+ * active doc may already be a different tab — writing there would copy one
+ * tab's text into another.
+ */
 function syncFromModes () {
-  const doc = activeDoc()
+  const doc = state.docs.find((d) => d.id === state.mountedDocId)
   if (!doc || !state.primary) return
   if (state.primary.isDirty?.()) doc.markdown = state.primary.getMarkdown()
   const f = state.primary.getScrollFraction?.()
@@ -317,6 +326,7 @@ function teardownLayout () {
   }
   state.mounted = []
   state.primary = null
+  state.mountedDocId = null
   el.modeHost.innerHTML = ''
   el.modeHost.style.removeProperty('--split-ratio')
 }
@@ -343,13 +353,17 @@ function mountLayout () {
   if (!doc) return
   teardownLayout()
 
+  state.mountedDocId = doc.id
+  // A book has no markdown to edit, so it only ever has the reading view.
+  if (doc.book) doc.mode = 'reading'
   document.body.dataset.mode = doc.mode
 
   if (doc.mode === 'split') {
     mountSplit(doc)
   } else {
     const mode = buildMode(doc.mode, el.modeHost, handleEdit)
-    mode.setMarkdown(doc.markdown)
+    if (doc.book) mode.setBook(doc.book)
+    else mode.setMarkdown(doc.markdown)
     mode.setScrollFraction?.(doc.scroll || 0)
     state.mounted = [mode]
     state.primary = mode
@@ -452,7 +466,7 @@ const MODE_CYCLE = ['source', 'rich', 'split', 'reading']
 
 function setMode (modeId) {
   const doc = activeDoc()
-  if (!doc || doc.mode === modeId || !MODE_CYCLE.includes(modeId)) return
+  if (!doc || doc.book || doc.mode === modeId || !MODE_CYCLE.includes(modeId)) return
   syncFromModes()
   doc.mode = modeId
   updateSettings({ mode: modeId })
@@ -555,22 +569,47 @@ async function openPath (path) {
   return adoptOpened(res)
 }
 
-/** Reuse a pristine untitled tab rather than stacking an empty one up. */
+/**
+ * Turn an opened file ({path, content} or {path, epub}) into a Doc.
+ * -> Doc, or {error} when an EPUB cannot be read.
+ */
+function docFromOpened (res, { mode, draftId } = {}) {
+  if (!res.epub) {
+    return makeDoc({ path: res.path, markdown: res.content, mode: mode || state.settings.mode, draftId })
+  }
+  let book
+  try {
+    book = buildBook(res.epub)
+  } catch (err) {
+    return { error: err?.message || String(err) }
+  }
+  const doc = makeDoc({ path: res.path, mode: 'reading', draftId, title: book.title || undefined })
+  doc.book = book
+  return doc
+}
+
+/**
+ * Reuse a pristine untitled tab (empty, or the untouched welcome page) rather than
+ * stacking another tab up. Only once the file has opened, so a failure leaves it be.
+ */
 function adoptOpened (res) {
+  const doc = docFromOpened(res)
+  if (doc.error) { api.dialog.error('Could not open file', doc.error); return null }
   const current = activeDoc()
-  if (current && !current.path && !isDirty(current) && current.markdown === '') {
-    current.path = res.path
-    current.title = basename(res.path)
-    current.markdown = res.content
-    current.savedMarkdown = res.content
+  if (current && !current.path && !isDirty(current) && (current.markdown === '' || current.ephemeral)) {
+    syncFromModes()
+    // It may have left a draft behind while it briefly had text; don't resurrect it.
+    dropDraft(current)
+    state.docs[state.docs.indexOf(current)] = doc
+    state.activeId = doc.id
     mountLayout()
     paintTabs()
     updateTitle()
     paintFolderTree()
     persistSession()
-    return current
+    return doc
   }
-  return openDoc(makeDoc({ path: res.path, markdown: res.content, mode: state.settings.mode }))
+  return openDoc(doc)
 }
 
 async function openViaDialog () {
@@ -582,6 +621,8 @@ async function openViaDialog () {
 }
 
 async function saveDoc (doc) {
+  // Books are read-only and never dirty; there is nothing to write.
+  if (doc.book) return true
   if (doc.id === state.activeId) syncFromModes()
   if (doc.path) {
     const res = await api.file.save(doc.path, doc.markdown)
@@ -600,6 +641,7 @@ async function saveDoc (doc) {
 }
 
 async function saveDocAs (doc) {
+  if (doc.book) return false
   if (doc.id === state.activeId) syncFromModes()
   const res = await api.file.saveDialog(doc.markdown, `${doc.title}.md`)
   if (res.canceled) return false
@@ -640,12 +682,14 @@ function buildExportHtml (doc) {
 <style>${collectStyles()}</style>
 </head>
 <body class="exported">
-<article class="markdown-body">${renderMarkdown(doc.markdown)}</article>
+<article class="markdown-body">${doc.book ? doc.book.html : renderMarkdown(doc.markdown)}</article>
 </body>
 </html>`
 }
 
 function exportBaseName (doc) {
+  // A book's tab shows its title, which may contain dots ("Mr. Smith"); use the file name.
+  if (doc.book && doc.path) return basename(doc.path).replace(/\.epub$/i, '')
   return doc.title.replace(/\.[^.]+$/, '')
 }
 
@@ -721,6 +765,8 @@ function paintToolbar () {
     const on = !!doc && btn.dataset.mode === doc.mode
     btn.setAttribute('aria-pressed', String(on))
     btn.classList.toggle('is-active', on)
+    // Books are read-only: the editing views have nothing to show.
+    btn.disabled = !!doc?.book && btn.dataset.mode !== 'reading'
   }
   const editable = state.primary ? state.primary.editable !== false : true
   el.formatBar?.toggleAttribute('hidden', !editable)
@@ -752,7 +798,10 @@ function paintStatus () {
   if (el.statusMode) el.statusMode.textContent = MODE_LABEL[doc.mode] || doc.mode
   const stats = state.primary?.getStats?.()
   if (el.statusStats && stats) {
-    el.statusStats.textContent = `${stats.words} words · ${stats.chars} chars · ${stats.lines} lines`
+    // Books have no source lines to count.
+    el.statusStats.textContent = stats.lines == null
+      ? `${stats.words} words · ${stats.chars} chars`
+      : `${stats.words} words · ${stats.chars} chars · ${stats.lines} lines`
   }
 }
 
@@ -1750,7 +1799,8 @@ async function boot () {
     if (!t.path) continue
     const res = await api.file.openPath(t.path)
     if (res.error) continue
-    restored.push(makeDoc({ path: res.path, markdown: res.content, mode: t.mode, draftId: t.draftId }))
+    const doc = docFromOpened(res, { mode: t.mode, draftId: t.draftId })
+    if (!doc.error) restored.push(doc)
   }
 
   // A draft the session never mentioned is still unsaved work — recover it
@@ -1784,13 +1834,10 @@ async function boot () {
   persistSession()
 
   // The file the app was launched with (double-click, Open with, CLI) opens last,
-  // so the restored session cannot bury it. It replaces an untouched welcome tab.
+  // so the restored session cannot bury it. adoptOpened replaces an untouched
+  // welcome tab, and leaves it in place if the file cannot be opened.
   const launchFile = await api.app.takePendingFile()
-  if (launchFile) {
-    const [only] = state.docs
-    if (state.docs.length === 1 && only.ephemeral && !isDirty(only)) state.docs = []
-    openExternal(launchFile)
-  }
+  if (launchFile) openExternal(launchFile)
 }
 
 boot().catch((err) => {

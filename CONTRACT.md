@@ -578,3 +578,59 @@ session.tabs = [{ path, mode, draftId }]   // path null for untitled, draftId al
 `restoreSession: false` suppresses restoring tabs but does **not** delete drafts,
 so turning it back on recovers them. Unreferenced drafts older than 30 days are
 pruned at startup.
+
+---
+
+# Addendum F — EPUB books (read-only)
+
+An `.epub` opens as a read-only book in the reading view, with its table of
+contents as the outline. Markdown stays the source of truth for everything else;
+a book simply has no markdown.
+
+## Opening
+
+`file.openDialog()`, `file.openPath(path)`, `onOpenExternalFile` and
+`app.takePendingFile()` return, for an `.epub`:
+
+```js
+{ path, epub: { files, images } }   // instead of { path, content }
+```
+
+- `files` — zip path -> text, for markup only (`.xhtml .html .htm .xml .opf .ncx`)
+- `images` — zip path -> `data:` URI
+- Fonts, CSS, audio and video are not extracted: the book is shown in the app theme.
+
+`src/main/epub.js` reads the zip with Node's zlib (no dependency). Caps: 256 MB
+file, 512 MB extracted, 20 000 entries, no ZIP64. DRM (an `encryption.xml` that
+covers pages rather than fonts) is refused with a clear error.
+
+## Building the book
+
+`src/renderer/src/epub.js` exports `buildBook(epub)` ->
+`{ title, author, html, outline, stats: { words, chars } }`, or throws an `Error`
+whose message is shown to the user.
+
+- Chapters follow the spine (linear items; non-linear only if nothing else).
+- Chapter `n` is `<section class="epub-chapter" id="c<n>">`; every id inside is
+  prefixed `c<n>-`. In-book links become `#c<n>` / `#c<n>-<id>`; links that
+  resolve nowhere lose their `href`. Only `http(s):` links stay external.
+- Images become `data:` URIs, so HTML/PDF export of a book is self-contained.
+- HTML passes through `sanitizeBookHtml` (markdown.js): the markdown rules plus
+  inline SVG, minus `class` and `style`.
+- Outline: EPUB 3 nav document, else the EPUB 2 NCX, else one entry per chapter.
+
+## Controller
+
+- `Doc` gains an optional `book`. A book doc has `markdown === ''`, so it is
+  never dirty and never drafted; it is stored in the session by path like any file.
+- A book is locked to `reading`: `setMode` ignores it and the other mode buttons
+  are disabled. Save and Save As do nothing.
+- Reading mode gains `setBook(book)`; `getOutline()` and `getStats()` then come
+  from the book. `getStats()` has no `lines` for a book.
+- The folder browser lists `.epub` files alongside markdown.
+- `isDirty` is always false for a book, and the main process refuses to write
+  any `.epub` path, so a book can never be saved over.
+- Opening a file reuses the active tab when it is an empty untitled tab or the
+  untouched welcome page — only after the file opened successfully.
+- `syncFromModes` writes into the doc the layout was mounted for
+  (`state.mountedDocId`), never into whichever doc is active at the time.
