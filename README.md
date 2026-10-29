@@ -14,7 +14,7 @@ new version over an old one keeps your settings, themes and open tabs.
 | --- | --- | --- |
 | **Source** | `Ctrl+1` | Raw markdown in CodeMirror 6, with syntax highlighting and highlighted fenced code |
 | **Rich** | `Ctrl+2` | WYSIWYG editing in TipTap — you get formatted text, the file stays markdown |
-| **Split** | `Ctrl+4` / `Ctrl+H` | Source on the left, live preview on the right, scroll-synced |
+| **Split** | `Ctrl+4` | Source on the left, live preview on the right, scroll-synced |
 | **Read** | `Ctrl+3` | Rendered output, no editing chrome |
 
 Markdown on disk is the single source of truth. Switching views does **not**
@@ -43,6 +43,9 @@ with [Calibre](https://calibre-ebook.com) first.
 
 - **Tabs** — `Ctrl+T` new, `Ctrl+W` close, `Ctrl+Tab` to cycle, middle-click to close.
   Unsaved tabs show a dot. Open tabs are restored on the next launch.
+- **Find and replace** — `Ctrl+F` finds, `Ctrl+H` finds and replaces, in
+  Source, Split and Rich. Read view (and EPUB books) can find but not replace.
+  `Enter` / `Shift+Enter` step through matches, `Esc` closes.
 - **Folder browser** — *File → Open Folder…* puts a tree of your markdown files
   and EPUB books in the sidebar, watched for changes on disk.
 - **Outline** — live table of contents from your headings, click to jump. Works

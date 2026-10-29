@@ -1289,8 +1289,132 @@ body[data-sidebar='hidden'] #sidebar-resizer::before {
   min-width: 0;
   min-height: 0;
   display: flex;
+  position: relative; /* anchors #find-bar */
   background: var(--bg);
   transition: background-color var(--transition);
+}
+
+/* ---------------------------------------------------------------------------
+   7b. Find / replace bar (Rich + Read; find.js). Floats top-right over the
+   view and borrows the look of the restyled CodeMirror search panel.
+   --------------------------------------------------------------------------- */
+#find-bar {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-4);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}
+
+#find-bar[hidden],
+#find-bar .find-row[hidden] {
+  display: none;
+}
+
+#find-bar .find-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#find-bar input {
+  width: 200px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg);
+  font: inherit;
+}
+
+#find-bar input::placeholder {
+  color: var(--fg-subtle);
+}
+
+#find-bar input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+#find-bar.no-results .find-input {
+  border-color: var(--danger);
+}
+
+#find-bar .find-count {
+  min-width: 64px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#find-bar .find-btn {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: default;
+}
+
+#find-bar .find-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+#find-bar .find-btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--fg);
+}
+
+#find-bar .find-close {
+  border-color: transparent;
+  background: transparent;
+  font-size: 15px;
+}
+
+/* the replace row's buttons line up under the find row's */
+#find-bar .find-replace-row .find-btn {
+  min-width: 0;
+}
+
+/* Matches: Rich uses decorations (.find-match), Read the CSS Highlight API. */
+.ProseMirror .find-match {
+  background: color-mix(in srgb, var(--warning) 26%, transparent);
+  border-radius: 2px;
+  outline: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+}
+
+.ProseMirror .find-match.find-current {
+  background: var(--accent-muted);
+  outline-color: var(--accent);
+}
+
+::highlight(forme-find) {
+  background-color: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+::highlight(forme-find-current) {
+  background-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 #mode-host {

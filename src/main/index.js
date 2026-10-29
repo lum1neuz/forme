@@ -1978,7 +1978,7 @@ function commandForInput(input) {
     case 'e':
       return 'mode:cycle'
     case 'h':
-      return 'mode:split'
+      return 'edit:replace'
     case 'b':
       return 'view:toggle-sidebar'
     case 'f':

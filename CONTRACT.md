@@ -73,7 +73,7 @@ window.forme = {
 `mode:source` `mode:rich` `mode:reading` `mode:cycle`
 `theme:toggle` `theme:dark` `theme:light` `theme:system`
 `view:toggle-sidebar` `view:zoom-in` `view:zoom-out` `view:zoom-reset`
-`edit:find` `help:about`
+`edit:find` `edit:replace` `help:about`
 
 `file:open` may carry a payload of `{path}` when launched from the recent-files
 submenu.
@@ -221,7 +221,28 @@ pushing edits to the preview debounced. Pane ratio lives in
 Every mode gains: `setWrap(enabled)`, `getScrollFraction()`,
 `setScrollFraction(f)`, `onScroll(cb)`.
 
-Menu: `mode:split` (CmdOrCtrl+4), and Ctrl+H also toggles split.
+Menu: `mode:split` (CmdOrCtrl+4). Ctrl+H used to toggle split too; it is now
+Replace (see Find / replace).
+
+## Find / replace
+
+`edit:find` (Ctrl+F) and `edit:replace` (Ctrl+H; Cmd+Alt+F on macOS). The
+controller calls `mode.find({ replace })`; a mode that returns `true` showed its
+own UI (Source: CodeMirror's search panel, which has replace built in).
+Otherwise the controller opens `#find-bar` (`find.js`), which drives:
+
+```js
+search(query, { caseSensitive }) -> { count, current }  // current: 0-based, -1 = none
+searchStep(dir)                  -> { count, current }  // dir: 1 | -1
+replaceMatch(text)               -> { count, current }  // editable modes only
+replaceAll(text)                 -> number replaced     // editable modes only
+clearSearch()
+```
+
+Rich implements all five (ProseMirror decorations; replacements are normal
+transactions, so they mark the tab dirty and undo). Read implements the
+find-only three (CSS Custom Highlight API; the article DOM is not touched), so
+the bar hides its replace row there. The bar closes on every view/tab switch.
 
 ## Tabs (multi-document)
 

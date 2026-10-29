@@ -238,6 +238,23 @@
 
         <main id="workspace">
           <div id="mode-host"></div>
+
+          <!-- Find / replace for Rich and Read (Source uses CodeMirror's panel). find.js -->
+          <div id="find-bar" role="search" aria-label="Find and replace" hidden>
+            <div class="find-row">
+              <input class="find-input" type="text" placeholder="Find" aria-label="Find" spellcheck="false" />
+              <span class="find-count" aria-live="polite"></span>
+              <button type="button" class="find-btn" data-act="case" aria-pressed="false" title="Match case (Alt+C)">Aa</button>
+              <button type="button" class="find-btn" data-act="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">&#8593;</button>
+              <button type="button" class="find-btn" data-act="next" title="Next match (Enter)" aria-label="Next match">&#8595;</button>
+              <button type="button" class="find-btn find-close" data-act="close" title="Close (Esc)" aria-label="Close">&#215;</button>
+            </div>
+            <div class="find-row find-replace-row" hidden>
+              <input class="replace-input" type="text" placeholder="Replace" aria-label="Replace" spellcheck="false" />
+              <button type="button" class="find-btn" data-act="replace" title="Replace (Enter)">Replace</button>
+              <button type="button" class="find-btn" data-act="all" title="Replace all (Ctrl+Alt+Enter)">All</button>
+            </div>
+          </div>
         </main>
       </div>
 

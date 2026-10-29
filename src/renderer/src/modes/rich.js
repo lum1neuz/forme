@@ -9,7 +9,9 @@
  *                              : htmlToMarkdown(editor.getHTML())
  */
 
-import { Editor } from '@tiptap/core'
+import { Editor, Extension } from '@tiptap/core'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import StarterKit from '@tiptap/starter-kit'
 import Typography from '@tiptap/extension-typography'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
@@ -24,6 +26,7 @@ import {
 } from '../markdown.js'
 import { debounce, rafThrottle } from '../lib/debounce.js'
 import { scrollFractionOf, setScrollFractionOf } from '../lib/scroll.js'
+import { findOffsets } from '../find.js'
 
 /**
  * @param {{theme?:string, settings?:object, onChange?:Function, onLinkClick?:Function}} opts
@@ -115,8 +118,97 @@ export function createRichMode(opts = {}) {
     return out
   }
 
+  /* ------------------------------------------------------- find / replace */
+
+  const findKey = new PluginKey('formeFind')
+  const find = { query: '', caseSensitive: false, matches: [], current: -1, doc: null }
+
+  /**
+   * Every match as doc positions. Matching runs per textblock over its whole
+   * text, so a match may cross marks ("foo **bar**" finds "foo bar").
+   */
+  function collectMatches(doc) {
+    const out = []
+    doc.descendants((node, pos) => {
+      if (!node.isTextblock) return true
+      let text = ''
+      const map = []
+      node.forEach((child, offset) => {
+        const start = pos + 1 + offset
+        if (child.isText) {
+          for (let i = 0; i < child.text.length; i++) map.push(start + i)
+          text += child.text
+        } else {
+          // inline leaves (hard breaks, images) take one position
+          map.push(start)
+          text += '￼'
+        }
+      })
+      for (const i of findOffsets(text, find.query, find.caseSensitive)) {
+        out.push({ from: map[i], to: map[i + find.query.length - 1] + 1 })
+      }
+      return false
+    })
+    return out
+  }
+
+  /** Re-scan only when the doc changed since the last scan. */
+  function syncMatches(doc) {
+    if (find.doc === doc) return
+    find.doc = doc
+    find.matches = find.query ? collectMatches(doc) : []
+    if (find.current >= find.matches.length) find.current = find.matches.length - 1
+    if (find.current < 0 && find.matches.length) find.current = 0
+  }
+
+  function findInfo() {
+    return { count: find.matches.length, current: find.current }
+  }
+
+  /** Index of the first match starting at or after `pos`, wrapping to 0. */
+  function matchFrom(pos) {
+    if (!find.matches.length) return -1
+    return Math.max(0, find.matches.findIndex((m) => m.from >= pos))
+  }
+
+  /** Repaint the highlights; with `select`, also select + reveal the current match. */
+  function redraw(select) {
+    if (!editor) return
+    const tr = editor.state.tr.setMeta(findKey, true)
+    const m = find.matches[find.current]
+    if (select && m) tr.setSelection(TextSelection.create(tr.doc, m.from, m.to)).scrollIntoView()
+    editor.view.dispatch(tr)
+  }
+
+  const findExtension = Extension.create({
+    name: 'formeFind',
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          key: findKey,
+          props: {
+            decorations(state) {
+              if (!find.query) return null
+              syncMatches(state.doc)
+              if (!find.matches.length) return null
+              return DecorationSet.create(
+                state.doc,
+                find.matches.map((m, i) =>
+                  Decoration.inline(m.from, m.to, {
+                    class: i === find.current ? 'find-match find-current' : 'find-match'
+                  })
+                )
+              )
+            }
+          }
+        })
+      ]
+    }
+  })
+
   function extensions() {
     return [
+      findExtension,
       // v3's StarterKit already ships Link, Underline, the list extensions and
       // UndoRedo — adding them again would throw on duplicate names.
       StarterKit.configure({
@@ -379,9 +471,65 @@ export function createRichMode(opts = {}) {
       return active
     },
 
-    /** TipTap has no find UI; the controller falls back to its own. */
+    /** TipTap has no find UI; the controller's find bar drives the methods below. */
     find() {
       return false
+    },
+
+    search(query, { caseSensitive = false } = {}) {
+      if (!editor) return { count: 0, current: -1 }
+      find.query = String(query || '')
+      find.caseSensitive = !!caseSensitive
+      find.doc = null
+      syncMatches(editor.state.doc)
+      // Start at the caret, so typing more of the query keeps the same hit.
+      find.current = matchFrom(editor.state.selection.from)
+      redraw(true)
+      return findInfo()
+    },
+
+    searchStep(dir) {
+      if (!editor) return { count: 0, current: -1 }
+      syncMatches(editor.state.doc)
+      const n = find.matches.length
+      if (n) find.current = (((find.current + dir) % n) + n) % n
+      redraw(true)
+      return findInfo()
+    },
+
+    replaceMatch(text) {
+      if (!editor) return { count: 0, current: -1 }
+      syncMatches(editor.state.doc)
+      const m = find.matches[find.current]
+      if (!m) return findInfo()
+      const value = String(text ?? '')
+      // A doc-changing transaction: onUpdate marks the tab dirty, and undo works.
+      editor.view.dispatch(editor.state.tr.insertText(value, m.from, m.to))
+      syncMatches(editor.state.doc)
+      find.current = matchFrom(m.from + value.length)
+      redraw(true)
+      return findInfo()
+    },
+
+    replaceAll(text) {
+      if (!editor) return 0
+      syncMatches(editor.state.doc)
+      const list = find.matches
+      if (!list.length) return 0
+      const value = String(text ?? '')
+      const tr = editor.state.tr
+      // Back to front, so earlier positions stay valid. One transaction = one undo.
+      for (let i = list.length - 1; i >= 0; i--) tr.insertText(value, list[i].from, list[i].to)
+      editor.view.dispatch(tr)
+      return list.length
+    },
+
+    clearSearch() {
+      find.query = ''
+      find.matches = []
+      find.current = -1
+      find.doc = null
+      redraw(false)
     },
 
     scrollToSlug(slug) {

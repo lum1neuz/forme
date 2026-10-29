@@ -14,6 +14,7 @@ import { createRichMode } from './modes/rich.js'
 import { createReadingMode } from './modes/reading.js'
 import { renderMarkdown } from './markdown.js'
 import { buildBook } from './epub.js'
+import { createFindBar } from './find.js'
 
 const api = window.forme
 
@@ -319,7 +320,21 @@ function syncFromModes () {
   if (typeof f === 'number' && !Number.isNaN(f)) doc.scroll = f
 }
 
+/* --------------------------------------------------------- find / replace */
+
+/** Set in wire(); null until then. */
+let findBar = null
+
+/** The view's own find UI if it has one (Source), otherwise the shared bar. */
+function openFind (replace) {
+  const mode = state.primary
+  if (!mode) return
+  if (mode.find?.({ replace }) === true) return
+  findBar?.open({ replace })
+}
+
 function teardownLayout () {
+  findBar?.close(false)
   syncFromModes()
   for (const m of state.mounted) {
     try { m.destroy?.() } catch (err) { console.error('mode teardown failed', err) }
@@ -1060,7 +1075,8 @@ const commands = {
   'view:zoom-in': () => zoom(1),
   'view:zoom-out': () => zoom(-1),
   'view:zoom-reset': () => { updateSettings({ fontSize: 15 }, { immediate: true }); applyBodySettings() },
-  'edit:find': () => state.primary?.find?.(),
+  'edit:find': () => openFind(false),
+  'edit:replace': () => openFind(true),
   'help:about': () => api.dialog.about(),
   'settings:changed': (payload) => {
     if (!payload) return
@@ -1104,11 +1120,15 @@ function appMenuSpec () {
     { command: 'file:export-html', label: 'Export as HTML…' },
     { command: 'file:export-pdf', label: 'Export as PDF…' },
     { separator: true },
+    { section: 'Edit' },
+    { command: 'edit:find', label: 'Find…', accel: 'Ctrl+F' },
+    { command: 'edit:replace', label: 'Replace…', accel: 'Ctrl+H' },
+    { separator: true },
     { section: 'View' },
     { command: 'mode:source', label: 'Source', accel: 'Ctrl+1', checked: mode === 'source' },
     { command: 'mode:rich', label: 'Rich Text', accel: 'Ctrl+2', checked: mode === 'rich' },
     { command: 'mode:reading', label: 'Reading', accel: 'Ctrl+3', checked: mode === 'reading' },
-    { command: 'mode:split', label: 'Split', accel: 'Ctrl+H', checked: mode === 'split' },
+    { command: 'mode:split', label: 'Split', accel: 'Ctrl+4', checked: mode === 'split' },
     { separator: true },
     { command: 'view:toggle-sidebar', label: 'Toggle Sidebar', accel: 'Ctrl+B', checked: state.settings.sidebarVisible !== false },
     { command: 'view:toggle-wrap', label: 'Word Wrap', accel: 'Alt+Z', checked: state.settings.wrap !== false },
@@ -1607,6 +1627,7 @@ function wireDom () {
   el.btnNewTab = $('#btn-new-tab')
   el.formatBar = $('#format-bar')
   el.modeHost = $('#mode-host')
+  el.findBar = $('#find-bar')
   el.btnTheme = $('#btn-theme')
   el.btnWrap = $('#btn-wrap')
   el.statusFile = $('#status-file')
@@ -1686,6 +1707,7 @@ function wireDom () {
   wireAppMenu()
   wireWindowControls()
   wirePrefs()
+  if (el.findBar) findBar = createFindBar(el.findBar, { getTarget: () => state.primary })
 
   document.addEventListener('selectionchange', () => paintFormatState())
 
@@ -1709,7 +1731,7 @@ A markdown editor with four views. Switch between them from the toolbar, the
 | --- | --- | --- |
 | Source | \`Ctrl+1\` | Raw markdown with syntax highlighting |
 | Rich | \`Ctrl+2\` | WYSIWYG editing — the markdown is written for you |
-| Split | \`Ctrl+4\` / \`Ctrl+H\` | Source on the left, live preview on the right |
+| Split | \`Ctrl+4\` | Source on the left, live preview on the right |
 | Read | \`Ctrl+3\` | Distraction-free rendered output |
 
 ## Getting started

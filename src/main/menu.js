@@ -93,7 +93,14 @@ function editMenu() {
       { role: 'delete' },
       { role: 'selectAll' },
       { type: 'separator' },
-      { id: 'edit-find', label: 'Find…', accelerator: 'CmdOrCtrl+F', click: () => send('edit:find') }
+      { id: 'edit-find', label: 'Find…', accelerator: 'CmdOrCtrl+F', click: () => send('edit:find') },
+      {
+        // Cmd+H is macOS's reserved Hide, so the Mac gets its usual Cmd+Alt+F.
+        id: 'edit-replace',
+        label: 'Replace…',
+        accelerator: isMac ? 'Cmd+Alt+F' : 'Ctrl+H',
+        click: () => send('edit:replace')
+      }
     ]
   }
 }
@@ -135,16 +142,6 @@ function viewMenu() {
         click: () => send('mode:reading')
       },
       { type: 'separator' },
-      {
-        // Second, visible binding for split — the reference editor uses Ctrl+H.
-        // Deliberately a normal item, not a hidden one: hidden-item accelerators
-        // are only reliable on macOS. Literal Ctrl (not CmdOrCtrl) because Cmd+H
-        // is macOS's reserved Hide shortcut.
-        id: 'mode-split-toggle',
-        label: 'Toggle Split View',
-        accelerator: 'Ctrl+H',
-        click: () => send('mode:split')
-      },
       {
         id: 'mode-cycle',
         label: 'Cycle Mode',

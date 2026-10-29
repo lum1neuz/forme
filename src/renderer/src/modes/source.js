@@ -782,10 +782,21 @@ export function createSourceMode(opts = {}) {
       return active
     },
 
-    find() {
-      if (!view) return
+    /** CodeMirror's own panel already does find + replace. Returns true: handled. */
+    find({ replace = false } = {}) {
+      if (!view) return true
       view.focus()
       openSearchPanel(view)
+      if (replace) {
+        const search = view.dom.querySelector('.cm-search [name=search]')
+        const field = view.dom.querySelector('.cm-search [name=replace]')
+        // With a query already in place, go straight to the replacement.
+        if (field && search && search.value) {
+          field.focus()
+          field.select()
+        }
+      }
+      return true
     },
 
     scrollToSlug(slug) {
